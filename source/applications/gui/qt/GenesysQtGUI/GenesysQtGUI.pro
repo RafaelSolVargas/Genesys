@@ -75,6 +75,7 @@ SOURCES += \
 	../../../../plugins/components/Create.cpp \
 	../../../../plugins/components/Decide.cpp \
 	../../../../plugins/components/Delay.cpp \
+	../../../../plugins/components/DiffEquations.cpp \
 	../../../../plugins/components/Dispose.cpp \
 	../../../../plugins/components/DropOff.cpp \
 	../../../../plugins/components/DummyComponent.cpp \
@@ -247,6 +248,7 @@ HEADERS += \
 	../../../../plugins/components/Create.h \
 	../../../../plugins/components/Decide.h \
 	../../../../plugins/components/Delay.h \
+	../../../../plugins/components/DiffEquations.h \
 	../../../../plugins/components/Dispose.h \
 	../../../../plugins/components/DropOff.h \
 	../../../../plugins/components/DummyComponent.h \
@@ -362,7 +364,6 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
-	../../../../../autoloadplugins.txt \
 	QPropertyBrowser/CMakeLists.txt \
 	QPropertyBrowser/images/cursor-arrow.png \
 	QPropertyBrowser/images/cursor-busy.png \

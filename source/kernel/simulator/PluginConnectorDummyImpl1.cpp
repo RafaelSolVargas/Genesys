@@ -24,7 +24,7 @@
 #include "../../plugins/components/Create.h"
 #include "../../plugins/components/Decide.h"
 #include "../../plugins/components/Delay.h"
-//#include "../../plugins/components/DiffEquations.h"
+#include "../../plugins/components/DiffEquations.h"
 #include "../../plugins/components/Dispose.h"
 #include "../../plugins/components/DropOff.h"
 #include "../../plugins/components/DummyComponent.h"
@@ -166,8 +166,8 @@ Plugin* PluginConnectorDummyImpl1::connect(const std::string dynamicLibraryFilen
 		GetInfo = &Dispose::GetPluginInformation;
 	else if (fn == "dummy.so")
 		GetInfo = &DummyComponent::GetPluginInformation;
-//	else if (fn == "diffequations.so")
-//		GetInfo = &DiffEquations::GetPluginInformation;
+	else if (fn == "diffequations.so")
+		GetInfo = &DiffEquations::GetPluginInformation;
 	else if (fn == "dropoff.so")
 		GetInfo = &DropOff::GetPluginInformation;
 	else if (fn == "efsmData.so")
