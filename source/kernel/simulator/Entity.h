@@ -83,19 +83,85 @@ public:
 	virtual std::string show();
 
 public: // g & s
+	/*!
+	 * \brief setEntityTypeName
+	 * \param entityTypeName
+	 */
 	void setEntityTypeName(std::string entityTypeName); //*!< indirect access to EntityType
+	/*!
+	 * \brief getEntityTypeName
+	 * \return
+	 */
 	std::string getEntityTypeName() const;
+	/*!
+	 * \brief setEntityType
+	 * \param entityType
+	 */
 	void setEntityType(EntityType* entityType); //*!< direct access to EntityType
+	/*!
+	 * \brief getEntityType
+	 * \return
+	 */
 	EntityType* getEntityType() const;
 public:
+	/*!
+	 * \brief getAttributeValue
+	 * \param attributeName
+	 * \return
+	 */
 	double getAttributeValue(std::string attributeName);
+	/*!
+	 * \brief getAttributeValue
+	 * \param index
+	 * \param attributeName
+	 * \return
+	 */
 	double getAttributeValue(std::string index, std::string attributeName);
+	/*!
+	 * \brief getAttributeValue
+	 * \param attributeID
+	 * \return
+	 */
 	double getAttributeValue(Util::identification attributeID);
+	/*!
+	 * \brief getAttributeValue
+	 * \param index
+	 * \param attributeID
+	 * \return
+	 */
 	double getAttributeValue(std::string index, Util::identification attributeID);
+	/*!
+	 * \brief setAttributeValue
+	 * \param attributeName
+	 * \param value
+	 * \param createIfNotFound
+	 */
 	void setAttributeValue(std::string attributeName, double value, bool createIfNotFound = false);
+	/*!
+	 * \brief setAttributeValue
+	 * \param index
+	 * \param attributeName
+	 * \param value
+	 * \param createIfNotFound
+	 */
 	void setAttributeValue(std::string index, std::string attributeName, double value, bool createIfNotFound=false);
+	/*!
+	 * \brief setAttributeValue
+	 * \param attributeID
+	 * \param value
+	 */
 	void setAttributeValue(Util::identification attributeID, double value);
+	/*!
+	 * \brief setAttributeValue
+	 * \param index
+	 * \param attributeID
+	 * \param value
+	 */
 	void setAttributeValue(std::string index, Util::identification attributeID, double value);
+	/*!
+	 * \brief entityNumber
+	 * \return
+	 */
 	Util::identification entityNumber() const;
 protected:
 	virtual bool _loadInstance(PersistenceRecord *fields);

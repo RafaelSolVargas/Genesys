@@ -43,9 +43,25 @@ public:
 	virtual ~ModelDataDefinition();
 
 public: // get & set
+	/*!
+	 * \brief getId
+	 * \return
+	 */
 	Util::identification getId() const;
+	/*!
+	 * \brief setName
+	 * \param name
+	 */
 	void setName(std::string name);
+	/*!
+	 * \brief getName
+	 * \return
+	 */
 	std::string getName() const;
+	/*!
+	 * \brief getClassname
+	 * \return
+	 */
 	std::string getClassname() const;
 	/*! Return true if this ModelDataDefinition generates statics for simulation reports*/
 	bool isReportStatistics() const;
@@ -53,13 +69,42 @@ public: // get & set
 	void setReportStatistics(bool reportStatistics);
 
 public:
+	/*!
+	 * \brief getInternalData
+	 * \param name
+	 * \return
+	 */
 	ModelDataDefinition* getInternalData(std::string name) const;
+	/*!
+	 * \brief getInternalData
+	 * \return
+	 */
 	std::map<std::string, ModelDataDefinition*>* getInternalData() const;
+	/*!
+	 * \brief getAttachedData
+	 * \return
+	 */
 	std::map<std::string, ModelDataDefinition*>* getAttachedData() const;
 	//ModelDataDefinition* getInternalData(std::string key) const;
+	/*!
+	 * \brief hasChanged
+	 * \return
+	 */
 	bool hasChanged() const;
+	/*!
+	 * \brief getLevel
+	 * \return
+	 */
 	unsigned int getLevel() const;
+	/*!
+	 * \brief setModelLevel
+	 * \param _modelLevel
+	 */
 	void setModelLevel(unsigned int _modelLevel);
+	/*!
+	 * \brief getProperties
+	 * \return
+	 */
 	List<PropertyBase*> *getProperties() const;
 
 public: // public static methods
