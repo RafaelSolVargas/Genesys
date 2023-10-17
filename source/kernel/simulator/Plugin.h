@@ -39,7 +39,7 @@ public:
 	bool isIsValidPlugin() const;
 	PluginInformation* getPluginInfo() const;
 public:
-	ModelDataDefinition* loadNew(Model* model, PersistenceRecord *fields); ///< creates a new ModelDataDefinition from fields loaded from a file
+	ModelDataDefinition* loadNew(Model* model, PersistenceRecord *fields); //!< creates a new ModelDataDefinition from fields loaded from a file
 	bool loadAndInsertNew(Model* model, PersistenceRecord *fields);
 	ModelDataDefinition* newInstance(Model* model, std::string name = "");
 private:

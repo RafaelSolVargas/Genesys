@@ -3,7 +3,7 @@
 #include <QPainter>
 
 GraphicalConnection::GraphicalConnection(GraphicalComponentPort* sourceGraphicalPort, GraphicalComponentPort* destinationGraphicalPort, QColor color, QGraphicsItem *parent) : QGraphicsObject(parent) {
-	//// connect in the model
+	/// connect in the model
 	//ModelComponent* sourceComponent = sourceGraphicalPort->graphicalComponent()->getComponent();
 	//ModelComponent* destComponent=destinationGraphicalPort->graphicalComponent()->getComponent();
 	//_sourceConnection = new Connection({sourceComponent,sourceGraphicalPort->portNum()});

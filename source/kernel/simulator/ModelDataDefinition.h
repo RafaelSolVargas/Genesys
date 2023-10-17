@@ -81,7 +81,7 @@ public: // public virtual methods
 	virtual std::string show();
 	/*! Returns a list of keys (names) of internal ModelDatas, cuch as Counters, StatisticsCollectors and others. ChildrenElements are ModelDatas used by this ModelDataDefinition thar are needed before model checking */
 
-protected: /// methods to be called inside the _createInternalAndAttachedData() method
+protected: //! methods to be called inside the _createInternalAndAttachedData() method
 	void _internalDataClear();
 	void _internalDataInsert(std::string key, ModelDataDefinition* child);
 	void _internalDataRemove(std::string key);
@@ -90,17 +90,17 @@ protected: /// methods to be called inside the _createInternalAndAttachedData() 
 	void _attachedDataClear();
 	void _attachedAttributesInsert(std::vector<std::string> neededNames);
 
-protected: /// method to be called to insert attached dataelements that are referenced by string expressions (detected by the parser), to avoid orphaned data definitions
+protected: //! method to be called to insert attached dataelements that are referenced by string expressions (detected by the parser), to avoid orphaned data definitions
 	void _checkCreateAttachedReferencedDataDefinition(std::string expression);//(std::map<std::string, std::list<std::string>*>* referencedDataDefinitions);
 
 protected:
 	bool _getSaveDefaultsOption();
 
-protected: /// must be overriden by derived classes
+protected: //! must be overriden by derived classes
 	virtual bool _loadInstance(PersistenceRecord *fields);
 	virtual void _saveInstance(PersistenceRecord *fields, bool saveDefaultValues);
 
-protected: /// could be overriden by derived classes
+protected: //! could be overriden by derived classes
 	virtual bool _check(std::string* errorMessage);
 	/*! This method returns all changes in the parser that are needed by plugins of this ModelDatas. When connecting a new plugin, ParserChangesInformation are used to change parser source code, whch is after compiled and dinamically linked to to simulator kernel to reflect the changes */
 	virtual ParserChangesInformation* _getParserChangesInformation();
@@ -126,7 +126,7 @@ protected:
 	unsigned int _modelLevel = 0; // the ID of parent component (submodel or process, for now) in the "superlevel"
 	Model* _parentModel;
 
-protected: /// just an easy access to trace manager
+protected: //! just an easy access to trace manager
 	void trace(std::string text, TraceManager::Level level = TraceManager::Level::L8_detailed);
 	void traceError(std::string text, std::exception e);
 	void traceError(std::string text, TraceManager::Level level = TraceManager::Level::L1_errorFatal);

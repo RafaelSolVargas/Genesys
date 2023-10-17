@@ -21,7 +21,7 @@
 #include <string>
 
 
-/// Externalize function GetPluginInformation to be accessible throught dynamic linked library
+// Externalize function GetPluginInformation to be accessible throught dynamic linked library
 #ifdef PLUGINCONNECT_DYNAMIC
 extern "C" StaticGetPluginInformation GetPluginInformation() {
 	return &DiffEquations::GetPluginInformation;
@@ -30,7 +30,7 @@ extern "C" StaticGetPluginInformation GetPluginInformation() {
 
 
 //
-// public: /// constructors
+// public: //! constructors
 //
 
 DiffEquations::DiffEquations(Model* model, std::string name) : ModelComponent(model, Util::TypeOf<DiffEquations>(), name) {
@@ -38,7 +38,7 @@ DiffEquations::DiffEquations(Model* model, std::string name) : ModelComponent(mo
 
 
 //
-// public: /// new public user methods for this component
+// public: //! new public user methods for this component
 //
 
 List<std::string> *DiffEquations::getEquations() const {
@@ -77,7 +77,7 @@ List<double> *DiffEquations::getvaluesOnFinalTime() const {
 
 
 //
-// public: /// virtual methods
+// public: //! virtual methods
 //
 
 std::string DiffEquations::show() {
@@ -86,7 +86,7 @@ std::string DiffEquations::show() {
 
 
 //
-// public: /// static methods that must have implementations (Load and New just the same. GetInformation must provide specific infos for the new component
+// public: //! static methods that must have implementations (Load and New just the same. GetInformation must provide specific infos for the new component
 //
 
 PluginInformation* DiffEquations::GetPluginInformation() {
@@ -123,7 +123,7 @@ ModelDataDefinition* DiffEquations::NewInstance(Model* model, std::string name) 
 }
 
 //
-// protected: /// virtual method that must be overriden
+// protected: //! virtual method that must be overriden
 //
 
 bool DiffEquations::_loadInstance(PersistenceRecord *fields) {
@@ -152,7 +152,7 @@ void DiffEquations::_onDispatchEvent(Entity* entity, unsigned int inputPortNumbe
 
 
 //
-// protected: /// virtual methods that could be overriden by derived classes, if needed
+// protected: //! virtual methods that could be overriden by derived classes, if needed
 //
 
 

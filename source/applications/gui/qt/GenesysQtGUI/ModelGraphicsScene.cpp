@@ -137,7 +137,7 @@ void ModelGraphicsScene::removeModelComponentInModel(GraphicalModelComponent* gm
 
 void ModelGraphicsScene::removeGraphicalModelComponent(GraphicalModelComponent* gmc) {
 	// remove graphically
-	/// first remove connections
+	// first remove connections
 	for (GraphicalComponentPort* port : gmc->getGraphicalInputPorts()) {
 		for (GraphicalConnection* graphConn : *port->getConnections()) {
 			removeGraphicalConnection(graphConn);
@@ -148,7 +148,7 @@ void ModelGraphicsScene::removeGraphicalModelComponent(GraphicalModelComponent* 
 			removeGraphicalConnection(graphConn);
 		}
 	}
-	/// then remove the component
+	// then remove the component
 	// remove in model
 	removeModelComponentInModel(gmc);
 	//graphically

@@ -141,7 +141,7 @@
 namespace yy {
 #line 143 "../GenesysParser.cpp"
 
-  /// Build a parser object.
+  // Build a parser object.
   genesyspp_parser::genesyspp_parser (genesyspp_driver& driver_yyarg)
 #if YYDEBUG
     : yydebug_ (false),
@@ -779,20 +779,20 @@ namespace yy {
   genesyspp_parser::parse ()
   {
     int yyn;
-    /// Length of the RHS of the rule being reduced.
+    // Length of the RHS of the rule being reduced.
     int yylen = 0;
 
     // Error handling.
     int yynerrs_ = 0;
     int yyerrstatus_ = 0;
 
-    /// The lookahead symbol.
+    // The lookahead symbol.
     symbol_type yyla;
 
-    /// The locations where the error started and ended.
+    // The locations where the error started and ended.
     stack_symbol_type yyerror_range[3];
 
-    /// The return value of parse ().
+    // The return value of parse ().
     int yyresult;
 
 #if YY_EXCEPTIONS
