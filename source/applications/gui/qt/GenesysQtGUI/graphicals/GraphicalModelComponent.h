@@ -27,8 +27,16 @@ public:
 	QRectF boundingRect() const override;
 	void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 	ModelComponent* getComponent() const;
+    qreal getHeight() const;
+    QPointF getOldPosition() const;
+    void setOldPosition(QPointF oldPosition);
 	QList<GraphicalComponentPort *> getGraphicalInputPorts() const;
 	QList<GraphicalComponentPort *> getGraphicalOutputPorts() const;
+    QColor getColor() const;
+    unsigned int getOcupiedInputPorts() const;
+    unsigned int getOcupiedOutputPorts() const;
+    void setOcupiedInputPorts(unsigned int value);
+    void setOcupiedOutputPorts(unsigned int value);
 private:
 	QColor myrgba(uint64_t color); // TODO: Should NOT be here, but in UtilGUI.h, but then it generates multiple definitions error
 protected: // virtual
@@ -52,6 +60,7 @@ protected:
 	unsigned int _selWidth = TraitsGUI<GModelComponent>::selectionWidth;//8;
 	ModelComponent* _component;
 	QColor _color;
+    QPointF _oldPosition;
 	qreal _stretchPosTop = TraitsGUI<GModelComponent>::stretchPos;//0.5;
 	qreal _stretchPosBottom = TraitsGUI<GModelComponent>::stretchPos;//0.5;
 	qreal _stretchPosLeft = TraitsGUI<GModelComponent>::stretchPos;//0.5;
@@ -67,6 +76,8 @@ protected:
 private:
 	QList<GraphicalComponentPort*> _graphicalInputPorts = QList<GraphicalComponentPort*>();
 	QList<GraphicalComponentPort*> _graphicalOutputPorts = QList<GraphicalComponentPort*>();
+    unsigned int _ocupiedInputPorts = 0;
+    unsigned int _ocupiedOutputPorts = 0;
 };
 
 #endif /* MODELCOMPONENTGRAPHICITEM_H */

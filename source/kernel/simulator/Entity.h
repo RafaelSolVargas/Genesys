@@ -106,37 +106,18 @@ public: // g & s
 public:
 	/*!
 	 * \brief getAttributeValue
-	 * \param attributeName
-	 * \return
-	 */
-	double getAttributeValue(std::string attributeName);
-	/*!
-	 * \brief getAttributeValue
 	 * \param index
 	 * \param attributeName
 	 * \return
 	 */
-	double getAttributeValue(std::string index, std::string attributeName);
-	/*!
-	 * \brief getAttributeValue
-	 * \param attributeID
-	 * \return
-	 */
-	double getAttributeValue(Util::identification attributeID);
+	double getAttributeValue(std::string attributeName, std::string index="");
 	/*!
 	 * \brief getAttributeValue
 	 * \param index
 	 * \param attributeID
 	 * \return
 	 */
-	double getAttributeValue(std::string index, Util::identification attributeID);
-	/*!
-	 * \brief setAttributeValue
-	 * \param attributeName
-	 * \param value
-	 * \param createIfNotFound
-	 */
-	void setAttributeValue(std::string attributeName, double value, bool createIfNotFound = false);
+	double getAttributeValue(Util::identification attributeID, std::string index="");
 	/*!
 	 * \brief setAttributeValue
 	 * \param index
@@ -144,20 +125,14 @@ public:
 	 * \param value
 	 * \param createIfNotFound
 	 */
-	void setAttributeValue(std::string index, std::string attributeName, double value, bool createIfNotFound=false);
-	/*!
-	 * \brief setAttributeValue
-	 * \param attributeID
-	 * \param value
-	 */
-	void setAttributeValue(Util::identification attributeID, double value);
+	void setAttributeValue(std::string attributeName, double value, std::string index="", bool createIfNotFound=false);
 	/*!
 	 * \brief setAttributeValue
 	 * \param index
 	 * \param attributeID
 	 * \param value
 	 */
-	void setAttributeValue(std::string index, Util::identification attributeID, double value);
+	void setAttributeValue(Util::identification attributeID, double value, std::string index="");
 	/*!
 	 * \brief entityNumber
 	 * \return

@@ -6,6 +6,7 @@
 #include "dialogs/dialogsimulationconfigure.h"
 #include "dialogs/dialogpluginmanager.h"
 #include "dialogs/dialogsystempreferences.h"
+#include "dialogs/DialogFind.h"
 // Kernel
 #include "../../../../kernel/simulator/SinkModelComponent.h"
 #include "../../../../kernel/simulator/Attribute.h"
@@ -13,6 +14,7 @@
 // GUI
 #include "ModelGraphicsScene.h"
 #include "TraitsGUI.h"
+#include "graphicals/GraphicalConnection.h"
 // PropEditor
 #include "QPropertyBrowser/qttreepropertybrowser.h"
 // QT
@@ -21,15 +23,28 @@
 #include <sstream>
 #include <streambuf>
 #include <QMessageBox>
+#include <QTextStream>
 #include <QFileDialog>
 #include <QGraphicsScene>
+#include <QDateTime>
+#include <QEventLoop>
+#include <QTemporaryFile>
 #include <Qt>
-#include <qt5/QtWidgets/qgraphicsitem.h>
+#include <QGraphicsPixmapItem>
+#include <QPropertyAnimation>
+// #include <qt5/QtWidgets/qgraphicsitem.h>
+#include <QtWidgets/qgraphicsitem.h>
 #include <QGraphicsScene>
 #include <QDesktopWidget>
-
-// @TODO: Should NOT be hardcoded!!! (Used to visualize variables)
+#include <QDebug>
+#include <actions/PasteUndoCommand.h>
+#include <actions/DeleteUndoCommand.h>
+#include "AnimationTransition.h"
+#include <cstdlib>
+// @TODO: Should NOT be hardcoded!!!
 #include "../../../../plugins/data/Variable.h"
+
+#include <QRandomGenerator>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
@@ -37,7 +52,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Genesys Simulator
 	simulator = new Simulator();
     simulator->getTracer()->setTraceLevel(TraitsApp<GenesysApplication_if>::traceLevel);
-	simulator->getTracer()->addTraceHandler<MainWindow>(this, &MainWindow::_simulatorTraceHandler);
+    simulator->getTracer()->addTraceHandler<MainWindow>(this, &MainWindow::_simulatorTraceHandler);
 	simulator->getTracer()->addTraceErrorHandler<MainWindow>(this, &MainWindow::_simulatorTraceErrorHandler);
 	simulator->getTracer()->addTraceReportHandler<MainWindow>(this, &MainWindow::_simulatorTraceReportsHandler);
 	simulator->getTracer()->addTraceSimulationHandler<MainWindow>(this, &MainWindow::_simulatorTraceSimulationHandler);
@@ -48,6 +63,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 		//@TODO: now it's the opportunity to adjust template
 		_insertPluginUI(simulator->getPlugins()->getAtRank(i));
 	}
+
+	propertyGenesys = new PropertyEditorGenesys();
 
 	//_insertFakePlugins(); // todo hate this
 
@@ -110,6 +127,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // ModelGraphic
 	ui->graphicsView->setParentWidget(ui->centralwidget);
 	ui->graphicsView->setSimulator(simulator);
+	ui->graphicsView->setPropertyEditor(propertyGenesys);
 	_zoomValue = ui->horizontalSlider_ZoomGraphical->maximum() / 2;
     //
     // set current tabs
@@ -162,31 +180,82 @@ MainWindow::~MainWindow() {
 	delete ui;
 }
 
-
-
+ModelGraphicsScene* MainWindow::myScene() const {
+    return ui->graphicsView->getScene();
+}
 //-----------------------------------------------------------------
 
-bool MainWindow::_saveGraphicalModel(std::string filename) {
-	std::ofstream savefile;
+bool MainWindow::_saveTextModel(QFile *saveFile, QString data)
+{
+    QTextStream out(saveFile);
+
 	try {
-		savefile.open(filename, std::ofstream::out);
-		savefile << "#Genegys Graphic Model" << std::endl;
-		std::string line;
-		line = "0\tView\t";
-		line += "zoom=" + std::to_string(ui->horizontalSlider_ZoomGraphical->value());
-		line += ", grid=10, rule=0, snap=0, viewpoint=(0,0)";
-		savefile << line << std::endl;
-		ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
-		for (QGraphicsItem* item : *scene->getGraphicalModelComponents()) {
-			GraphicalModelComponent* gmc = (GraphicalModelComponent*) item;
-			line = std::to_string(gmc->getComponent()->getId()) + "\t" + Util::TypeOf<ModelComponent>() + "\t" + "position=(" + std::to_string(gmc->scenePos().x()) + "," + std::to_string(gmc->scenePos().y()) + ")";
-			savefile << line << std::endl;
-		}
-		savefile.close();
-		return true;
-	} catch (const std::exception& e) {
-		return false;
-	}
+        static const QRegularExpression regex("[\n]");
+        QStringList strList = data.split(regex);
+		for (const QString &line : strList) {
+            out << line << Qt::endl;
+        }
+        return true;
+    }
+	catch (const std::exception &e) {
+        return false;
+    }
+}
+
+bool MainWindow::_saveGraphicalModel(QString filename)
+{
+    QFile saveFile(filename);
+
+    try
+    {
+        if (!saveFile.open(QIODevice::WriteOnly | QIODevice::Text))
+        {
+            QMessageBox::information(this, tr("Unable to access file to save"),
+                                     saveFile.errorString());
+            return false;
+        }
+
+        _saveTextModel(&saveFile, ui->TextCodeEditor->toPlainText());
+
+        QTextStream out(&saveFile);
+        out << "#Genegys Graphic Model" << Qt::endl;
+        QString line = "0\tView\t";
+        line += "zoom=" + QString::number(ui->horizontalSlider_ZoomGraphical->value());
+        line += ", grid=10, rule=0, snap=0, viewpoint=(0,0)";
+        out << line << Qt::endl;
+
+        ModelGraphicsScene *scene = (ModelGraphicsScene *)(ui->graphicsView->getScene());
+
+        if (scene)
+        {
+            for (QGraphicsItem *item : *ui->graphicsView->getScene()->getGraphicalModelComponents())
+            {
+                GraphicalModelComponent *gmc = (GraphicalModelComponent *)item;
+                if (gmc)
+                {
+                    line = QString::fromStdString(std::to_string(gmc->getComponent()->getId()) + "\t" + gmc->getComponent()->getClassname() + "\t" + gmc->getComponent()->getName() + "\t" + "color=" + gmc->getColor().name().toStdString() + "\t" + "position=(" + std::to_string(gmc->scenePos().x()) + "," + std::to_string(gmc->scenePos().y()) + ")");
+                    out << line << Qt::endl;
+                }
+            }
+            /*/Lines
+            out << "LINE" << Qt::endl;
+            for (QGraphicsItem *item : *ui->graphicsView->getScene()->getGraphicalModelComponents())
+            {
+                QGraphicsLineItem *drawLine = dynamic_cast<QGraphicsLineItem *> (item);
+                if (drawLine)
+                {
+                    line = QString::fromStdString(std::to_string(drawLine->))
+                }
+            }*/
+        }
+
+        saveFile.close();
+        return true;
+    }
+    catch (const std::exception &e)
+    {
+        return false;
+    }
 
 	//QString data = QString::fromStdString(dot);
 	//QStringList strList = data.split(QRegExp("[\n]"), QString::SkipEmptyParts);
@@ -195,33 +264,179 @@ bool MainWindow::_saveGraphicalModel(std::string filename) {
 	//}
 }
 
-Model* MainWindow::_loadGraphicalModel(std::string filename) {
-	Model* model = simulator->getModels()->loadModel(filename);
-	if (model != nullptr) { // now load the text into the GUI
+Model *MainWindow::_loadGraphicalModel(std::string filename) {
+    QFile file(QString::fromStdString(filename));
+
+    Model *model = nullptr;
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::information(this, tr("Unable to access file to save"),
+                                file.errorString());
+        return nullptr;
+    }
+
+    QFileInfo fileInfo(file.fileName());
+    QString extension = fileInfo.suffix();
+
+    if (extension != "gui") {
+        model = simulator->getModels()->loadModel(file.fileName().toStdString());
+        if (model != nullptr) _generateGraphicalModelFromModel();
+        return model;
+    }
+
+    QString content = file.readAll();
+    file.close();
+
+    QStringList lines = content.split("\n");
+
+    QStringList simulLang;
+    QStringList gui;
+
+    bool guiFlag = false;
+
+    for (const QString &line : lines) {
+        if (line.startsWith("#Genegys Graphic Model")) {
+            guiFlag = true;
+            continue;
+        }
+
+        if (!guiFlag) simulLang.append(line);
+        else gui.append(line);
+    }
+
+    file.close();
+
+    QDateTime currentDateTime = QDateTime::currentDateTime();
+    QString newFilename = QString("/tempFile-%1.gen").arg(currentDateTime.toString("yyyy-MM-dd-hh-mm-ss"));
+
+    QString filePath = QDir::tempPath() + newFilename;
+    QFile tempFile(filePath);
+    tempFile.open(QIODevice::ReadWrite | QIODevice::Text);
+
+    QTextStream outStream(&tempFile);
+    for (const QString& line : simulLang) {
+        outStream << line << Qt::endl;
+    }
+
+    outStream.flush();
+
+    std::string nameTempFile = tempFile.fileName().toStdString();
+    model = simulator->getModels()->loadModel(nameTempFile);
+
+    tempFile.close();
+
+    QFile::remove(tempFile.fileName());
+
+    if (model != nullptr) {
+        std::list<ModelComponent*> c = * model->getComponents()->getAllComponents();
+
 		_clearModelEditors();
-		std::string line;
-		std::ifstream file(filename);
-		if (file.is_open()) {
-			while (std::getline(file, line)) {
-				ui->TextCodeEditor->appendPlainText(QString::fromStdString(line));
-			}
-			file.close();
-		} else {
-			ui->textEdit_Console->append(QString("Error reading model file"));
-		}
+
+        bool firstLine = true;
+
+        for (const QString& line : gui) {
+            if (line.trimmed().isEmpty()) {
+                continue;
+            }
+
+            if (firstLine) {
+                firstLine = false;
+                continue;
+            }
+
+            QStringList split = line.split("\t");
+
+            Util::identification id = split[0].toULong();
+
+            // Component
+            QString comp = split[1];
+
+            // Color
+            QString col = split[3];
+
+            // Posição
+            QString pos = split[4];
+
+            // Expressao regular para pegar a cor
+            QRegularExpression regexColor("color=#([0-9A-Fa-f]{6})");
+
+            // Cria a expressao regular match
+            QRegularExpressionMatch match = regexColor.match(col);
+
+            QString hexColor;
+
+            // Extrai a cor
+            if (match.hasMatch()) {hexColor = match.captured(1);}
+
+            // Cria a cor
+            QColor color("#"+ hexColor);
+
+            // Expressao regular para pegar a cor
+            QRegularExpression regexPos("position=\\((-?\\d+\\.?\\d*),(-?\\d+\\.?\\d*),(-?\\d+\\.?\\d*),(-?\\d+\\.?\\d*)\\)");
+
+            // Cria a expressao regular match
+            match = regexPos.match(pos);
+
+            QPoint position;
+
+            // Extrai a posição
+            if (match.hasMatch()) {
+                // Extrai x e y
+                qreal x = match.captured(1).toDouble();
+                qreal y = match.captured(3).toDouble();
+
+                // Seta x e y em pos
+                position.setX(x);
+                position.setY(y);
+            }
+
+            // Pega a cena para adicionar o componente nela
+            ModelGraphicsScene *scene = (ModelGraphicsScene *)(ui->graphicsView->scene());
+
+            // Pega o Plugin
+            Plugin* plugin = simulator->getPlugins()->find(comp.toStdString());
+
+            // Cria o componente no modelo
+            ModelComponent* component = simulator->getModels()->current()->getComponents()->find(id);
+
+            if (!component) continue;
+            // Desenha na tela
+            scene->addGraphicalModelComponent(plugin, component, position, color);
+        }
+
+        QList<QGraphicsItem*> *graphicalComponents = ui->graphicsView->getScene()->getGraphicalModelComponents();
+
+        for (unsigned int i = 0; i < (unsigned int) graphicalComponents->size(); i++) {
+            GraphicalModelComponent *source = dynamic_cast<GraphicalModelComponent *> (graphicalComponents->at(i));
+            std::map<unsigned int, Connection*> *connections = source->getComponent()->getConnections()->connections();
+
+            for (auto it = connections->begin(); it != connections->end(); ++it) {
+                unsigned int portSource = it->first;
+                Connection* connection = it->second;
+
+                GraphicalModelComponent* destination = ui->graphicsView->getScene()->findGraphicalModelComponent(connection->component->getId());
+                unsigned int portDestination = destination->getGraphicalInputPorts().at(0)->portNum();
+
+                source->setOcupiedOutputPorts(source->getOcupiedOutputPorts() + 1);
+                destination->setOcupiedInputPorts(destination->getOcupiedInputPorts() + 1);
+
+                std::string nameSource = source->getComponent()->getName();
+                GraphicalComponentPort* sourceport = source->getGraphicalOutputPorts().at(portSource);
+
+                std::string nameDestination = destination->getComponent()->getName();
+                GraphicalComponentPort* destport = destination->getGraphicalInputPorts().at(portDestination);
+
+                ui->graphicsView->getScene()->addGraphicalConnection(sourceport, destport, portSource, portDestination);
+            }
+        }
+
 		ui->textEdit_Console->append("\n");
 		_modelfilename = QString::fromStdString(filename);
-		_initUiForNewModel(model);
-		// /TODO: LOAD THE GRAPHICAL PART O A MODEL
-		if (true) { // there is no graphical part in the file
-			this->_generateGraphicalModelFromModel();
-		}
-	}
-	return model;
+    }
+    return model;
 }
 
 //-----------------------------------------------------------------
-
 
 //-----------------
 // View
@@ -258,7 +473,7 @@ void MainWindow::_recursivalyGenerateGraphicalModelFromModel(ModelComponent* com
 			GraphicalModelComponent *destinyGmc = map->at(nextComp);
 			sourceGraphicalPort = gmc->getGraphicalOutputPorts().at(connectionMap.first);
 			destinyGraphicalPort = destinyGmc->getGraphicalInputPorts().at(connectionMap.second->channel.portNumber);
-			scene->addGraphicalConnection(sourceGraphicalPort, destinyGraphicalPort);
+            scene->addGraphicalConnection(sourceGraphicalPort, destinyGraphicalPort, connectionMap.first, connectionMap.second->channel.portNumber);
 			*x = xIni;
 			*y+= deltaY;
 			sequenceInLine--;
@@ -310,46 +525,48 @@ void MainWindow::_actualizeActions() {
 	unsigned int maxCommandundoRedo = 0; //@TODO
 	if (opened) {
 		running = simulator->getModels()->current()->getSimulation()->isRunning();
-		paused = simulator->getModels()->current()->getSimulation()->isPaused();
-		numSelectedGraphicals = 0;//@TODO get total of selected graphical objects (this should br on another "actualize", I think
+        paused = simulator->getModels()->current()->getSimulation()->isPaused();
+        numSelectedGraphicals = 0;//@TODO get total of selected graphical objects (this should br on another "actualize", I think
 	}
 	//
 	ui->graphicsView->setEnabled(opened);
 	ui->tabWidgetCentral->setEnabled(opened);
 	// model
-	ui->actionModelSave->setEnabled(opened);
-	ui->actionModelClose->setEnabled(opened);
+    ui->actionModelSave->setEnabled(opened && !running);
+    ui->actionModelOpen->setEnabled(!running);
+    ui->actionModelClose->setEnabled(opened && !running);
 	ui->actionModelInformation->setEnabled(opened);
-	ui->actionModelCheck->setEnabled(opened);
+    ui->actionModelCheck->setEnabled(opened && !running);
 	//edit
-	ui->toolBarEdit->setEnabled(opened);
-	ui->menuEdit->setEnabled(opened);
+    ui->toolBarEdit->setEnabled(opened);
+    ui->menuEdit->setEnabled(opened);
 	// view
-	ui->menuView->setEnabled(opened);
-	ui->toolBarView->setEnabled(opened);
-	ui->toolBarAnimate->setEnabled(opened);
-	ui->toolBarGraphicalModel->setEnabled(opened);
-	ui->toolBarDraw->setEnabled(opened);
+    ui->menuView->setEnabled(opened);
+    ui->toolBarView->setEnabled(opened);
+    ui->toolBarAnimate->setEnabled(opened);
+    ui->toolBarGraphicalModel->setEnabled(opened);
+    ui->toolBarDraw->setEnabled(opened);
 	// simulation
-	ui->menuSimulation->setEnabled(opened);
-	ui->actionSimulationConfigure->setEnabled(opened);
+    ui->menuSimulation->setEnabled(opened);
+    ui->actionSimulationConfigure->setEnabled(opened);
 	ui->actionSimulationStart->setEnabled(opened && !running);
 	ui->actionSimulationStep->setEnabled(opened && !running);
 	ui->actionSimulationStop->setEnabled(opened && (running || paused));
 	ui->actionSimulationPause->setEnabled(opened && running);
-	ui->actionSimulationResume->setEnabled(opened && paused);
+    ui->actionSimulationResume->setEnabled(opened && paused);
+    ui->actionActivateGraphicalSimulation->setEnabled(opened);
 	// debug
 	ui->tableWidget_Breakpoints->setEnabled(opened);
 	ui->tableWidget_Entities->setEnabled(opened);
 	ui->tableWidget_Variables->setEnabled(opened);
 
 	// based on SELECTED GRAPHICAL OBJECTS or on COMMANDS DONE (UNDO/REDO)
-	ui->toolBarArranje->setEnabled(numSelectedGraphicals>0);
-	ui->actionEditCopy->setEnabled(numSelectedGraphicals>0);
-	ui->actionEditCut->setEnabled(numSelectedGraphicals>0);
+    ui->toolBarArranje->setEnabled(opened);
+	// TODO: MUDAR, ESTÁ HARDCODED, DEVERIA SER DISPONIBILIZADO COM UM COMPONENENTE FOSSE 
+	// TODO: SELECIONADO
+    ui->actionEditCopy->setEnabled(0);
+    ui->actionEditCut->setEnabled(0);
 	ui->actionEditDelete->setEnabled(numSelectedGraphicals>0);
-	ui->actionEditUndo->setEnabled(actualCommandundoRedo>0);
-	ui->actionEditRedo->setEnabled(actualCommandundoRedo<maxCommandundoRedo);
 
 	// sliders
 	ui->horizontalSlider_ZoomGraphical->setEnabled(opened);
@@ -509,6 +726,7 @@ void MainWindow::_actualizeDebugBreakpoints(bool force) {
 void MainWindow::_actualizeModelComponents(bool force) {
 	Model* m = simulator->getModels()->current();
 	ui->treeWidgetComponents->clear();
+
 	if (m == nullptr) {
 		return;
 	}
@@ -567,6 +785,25 @@ void MainWindow::_actualizeGraphicalModel(SimulationEvent * re) {
 	}
 }
 
+void MainWindow::_onMoveEntityEvent(SimulationEvent *re) {
+    // Cria a animação de transição
+
+    if (ui->actionActivateGraphicalSimulation->isChecked() && re) {
+        AnimationTransition *animationTransition = new AnimationTransition(myScene(), re->getCurrentEvent()->getComponent(), re->getDestinationComponent(), "car.png");
+        myScene()->getAnimationsTransition()->append(animationTransition);
+
+        // Inicia a animação
+        animationTransition->startAnimation();
+
+        // Cria um loop de eventos para aguardar a conclusão da animação
+        QEventLoop loop;
+        connect(animationTransition, &AnimationTransition::finished, &loop, &QEventLoop::quit);
+
+        // Aguarda a conclusão da animação sem bloquear o restante do código
+        loop.exec();
+    }
+}
+
 QColor MainWindow::myrgba(uint64_t color) {
 	uint8_t r, g, b, a;
 	r = (color&0xFF000000)>>24;
@@ -596,10 +833,13 @@ void MainWindow::_insertCommandInConsole(std::string text) {
 void MainWindow::_actualizeModelSimLanguage() {
 	Model* m = simulator->getModels()->current();
 	if (m != nullptr) {
-		m->getPersistence()->setOption(ModelPersistence_if::Options::SAVEDEFAULTS, true);
 		std::string tempFilename = "./temp.tmp";
-		m->getPersistence()->setOption(ModelPersistence_if::Options::SAVEDEFAULTS, false);
+		m->getPersistence()->setOption(ModelPersistence_if::Options::SAVEDEFAULTS, true);
+		TraceManager::Level savedLevel = m->getTracer()->getTraceLevel();
+		m->getTracer()->setTraceLevel(TraceManager::Level::L0_noTraces);
 		bool res = m->save(tempFilename);
+		m->getPersistence()->setOption(ModelPersistence_if::Options::SAVEDEFAULTS, false);
+		m->getTracer()->setTraceLevel(savedLevel);
 		std::string line;
 		std::ifstream file(tempFilename);
 		if (file.is_open()) {
@@ -638,10 +878,10 @@ bool MainWindow::_setSimulationModelBasedOnText() {
 		model = simulator->getModels()->current();
 		if (model != nullptr) {
 
-			_setOnEventHandlers();
-		}
-	}
-	return simulator->getModels()->current() != nullptr;
+            _setOnEventHandlers();
+        }
+    }
+    return simulator->getModels()->current() != nullptr;
 }
 
 std::string MainWindow::_adjustDotName(std::string name) {
@@ -663,11 +903,12 @@ void MainWindow::_insertTextInDot(std::string text, unsigned int compLevel, unsi
 		dotPair2.second->insert(dotPair2.second->begin(), text);
 	} else {
 
-		dotPair2.second->insert(dotPair2.second->end(), text);
-	}
+        dotPair2.second->insert(dotPair2.second->end(), text);
+    }
 }
 
-void MainWindow::_recursiveCreateModelGraphicPicture(ModelDataDefinition* componentOrData, std::list<ModelDataDefinition*>* visited, std::map<unsigned int, std::map<unsigned int, std::list<std::string>*>*>* dotmap) {
+void MainWindow::_recursiveCreateModelGraphicPicture(ModelDataDefinition *componentOrData, std::list<ModelDataDefinition *> *visited, std::map<unsigned int, std::map<unsigned int, std::list<std::string> *> *> *dotmap)
+{
 
 	/*
 	const struct DOT_STYLES {
@@ -714,8 +955,8 @@ void MainWindow::_recursiveCreateModelGraphicPicture(ModelDataDefinition* compon
 		std::string nodeComponent = "shape=record, fontsize=12, fontcolor=black, style=filled, fillcolor=bisque";
 		//std::string nodeComponentOtherLevel = "shape=record, fontsize=12, fontcolor=black, style=filled, fillcolor=goldenrod3";
 		std::string edgeComponent = "style=solid, arrowhead=\"normal\" color=black, fontcolor=black, fontsize=7";
-		std::string nodeDataDefInternal = "shape=record, fontsize=8, color=gray50, fontcolor=gray50, style=filled, fillcolor=#d9ebbd";
-		std::string nodeDataDefAttached = "shape=record, fontsize=10, color=gray50, fontcolor=gray50, style=filled, fillcolor=#a2cd5a";
+		std::string nodeDataDefInternal = "shape=record, fontsize=8, color=gray50, fontcolor=gray50";
+		std::string nodeDataDefAttached = "shape=record, fontsize=10, color=gray50, fontcolor=gray50, style=filled, fillcolor=darkolivegreen3";
 		std::string edgeDataDefInternal = "style=dashed, arrowhead=\"diamond\", color=gray55, fontcolor=gray55, fontsize=7";
 		std::string edgeDataDefAttached = "style=dashed, arrowhead=\"ediamond\", color=gray50, fontcolor=gray50, fontsize=7";
 		unsigned int rankSource = 0;
@@ -814,11 +1055,11 @@ void MainWindow::_recursiveCreateModelGraphicPicture(ModelDataDefinition* compon
 			}
 			if (connection->component->getLevel() == modellevel || ui->checkBox_ShowLevels->isChecked()) {
 
-				text = "    " + _adjustDotName(componentName) + "->" + _adjustDotName(connection->component->getName()) + "[" + DOT.edgeComponent + "];\n";
-				_insertTextInDot(text, modellevel, DOT.rankEdge, dotmap);
-			}
-		}
-	}
+                text = "    " + _adjustDotName(componentName) + "->" + _adjustDotName(connection->component->getName()) + "[" + DOT.edgeComponent + "];\n";
+                _insertTextInDot(text, modellevel, DOT.rankEdge, dotmap);
+            }
+        }
+    }
 }
 
 std::string MainWindow::_addCppCodeLine(std::string line, unsigned int indent) {
@@ -842,6 +1083,7 @@ void MainWindow::_actualizeModelCppCode() {
 		code->insert({"1begin", text});
 
 		text = _addCppCodeLine("#include \"kernel/simulator/Simulator.h\"");
+		text = _addCppCodeLine("#include \"kernel/simulator/PropertyGenesys.h\"");
 		List<std::string>* included = new List<std::string>();
 		for (ModelComponent* comp : *m->getComponents()->getAllComponents()) {
 			name = comp->getClassname();
@@ -866,8 +1108,9 @@ void MainWindow::_actualizeModelCppCode() {
 
 		text = _addCppCodeLine("\nint main(int argc, char** argv) {");
 		tabs++;
-		text += _addCppCodeLine("// Create simulator, a model and get acess to plugins", tabs);
+		text += _addCppCodeLine("// Create simulator, a property editor, a model and get acess to plugins", tabs);
 		text += _addCppCodeLine("Simulator* genesys = new Simulator();", tabs);
+		text += _addCppCodeLine("PropertyEditorGenesys* propertyEditor = new PropertyEditorGenesys();", tabs);
 		text += _addCppCodeLine("Model* model = genesys->getModels()->newModel();", tabs);
 		text += _addCppCodeLine("PluginManager* plugins = genesys->getPlugins();", tabs);
 		text += _addCppCodeLine("model->getTracer()->setTraceLevel(TraceManager::TraceLevel::L9_mostDetailed);", tabs);
@@ -884,12 +1127,18 @@ void MainWindow::_actualizeModelCppCode() {
 		}
 		code->insert({"4datadef", text});
 
-		text = _addCppCodeLine("// Create model components", tabs);
+		text = _addCppCodeLine("// Create model components and setting properties", tabs);
 		for (ModelComponent* comp : *m->getComponents()->getAllComponents()) {
 			name = comp->getName();
 			if (name.find(".") == std::string::npos) {
 				text += _addCppCodeLine(comp->getClassname() + "* " + name + " = plugins->newInstance<" + comp->getClassname() + ">(model, \"" + name + "\");", tabs);
 			}
+
+			for (auto prop : *comp->getProperties()->list()) {
+				text += _addCppCodeLine("propertyEditor->changeProperty(" + std::to_string(comp->getId()) + ", " + prop->getName() + ", " + prop->getValue() + ");", tabs);
+			};
+
+			text += _addCppCodeLine("", tabs);
 		}
 		code->insert({"5modelcompdef", text});
 
@@ -919,12 +1168,12 @@ void MainWindow::_actualizeModelCppCode() {
 		text += _addCppCodeLine("sim->setsetShowReportsAfterSimulation("+text2+");", tabs);
 		code->insert({"7simulation", text});
 
-		text = _addCppCodeLine("// simulate and show report", tabs);
-		text += _addCppCodeLine("sim->start();", tabs);
-		text += _addCppCodeLine("return 0;", tabs);
-		tabs--;
-		text += _addCppCodeLine("}", tabs);
-		code->insert({"8end", text});
+        text = _addCppCodeLine("// simulate and show report", tabs);
+        text += _addCppCodeLine("sim->start();", tabs);
+        text += _addCppCodeLine("return 0;", tabs);
+        tabs--;
+        text += _addCppCodeLine("}", tabs);
+        code->insert({"8end", text});
 
 		// Show
 		ui->plainTextEditCppCode->clear();
@@ -1052,10 +1301,8 @@ bool MainWindow::_createModelImage() {
 	} catch (...) {
 	}
 
-	return false;
+    return false;
 }
-
-
 
 //-------------------------
 // Simulator Trace Handlers
@@ -1081,12 +1328,13 @@ void MainWindow::_simulatorTraceHandler(TraceEvent e) {
 	QCoreApplication::processEvents();
 }
 
-void MainWindow::_simulatorTraceErrorHandler(TraceErrorEvent e) {
+void MainWindow::_simulatorTraceErrorHandler(TraceErrorEvent e)
+{
 
-	std::cout << e.getText() << std::endl;
-	ui->textEdit_Console->setTextColor(QColor::fromRgb(255, 0, 0));
-	ui->textEdit_Console->append(QString::fromStdString(e.getText()));
-	QCoreApplication::processEvents();
+    std::cout << e.getText() << std::endl;
+    ui->textEdit_Console->setTextColor(QColor::fromRgb(255, 0, 0));
+    ui->textEdit_Console->append(QString::fromStdString(e.getText()));
+    QCoreApplication::processEvents();
 }
 
 void MainWindow::_simulatorTraceSimulationHandler(TraceSimulationEvent e) {
@@ -1102,11 +1350,12 @@ void MainWindow::_simulatorTraceSimulationHandler(TraceSimulationEvent e) {
 	QCoreApplication::processEvents();
 }
 
-void MainWindow::_simulatorTraceReportsHandler(TraceEvent e) {
+void MainWindow::_simulatorTraceReportsHandler(TraceEvent e)
+{
 
-	std::cout << e.getText() << std::endl;
-	ui->textEdit_Reports->append(QString::fromStdString(e.getText()));
-	QCoreApplication::processEvents();
+    std::cout << e.getText() << std::endl;
+    ui->textEdit_Reports->append(QString::fromStdString(e.getText()));
+    QCoreApplication::processEvents();
 }
 
 //
@@ -1128,7 +1377,8 @@ void MainWindow::_onModelCheckSuccessHandler(ModelEvent* re) {
 	}
 }
 
-void MainWindow::_onReplicationStartHandler(SimulationEvent * re) {
+void MainWindow::_onReplicationStartHandler(SimulationEvent *re)
+{
 
 	ModelSimulation* sim = simulator->getModels()->current()->getSimulation();
 	QString text = QString::fromStdString(std::to_string(sim->getCurrentReplicationNumber())) + "/" + QString::fromStdString(std::to_string(sim->getNumberOfReplications()));
@@ -1139,7 +1389,7 @@ void MainWindow::_onReplicationStartHandler(SimulationEvent * re) {
 	newItem = new QTableWidgetItem(QString::fromStdString("Replication " + std::to_string(re->getCurrentReplicationNumber())));
 	ui->tableWidget_Simulation_Event->setItem(row, 2, newItem);
 
-	QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
 }
 
 void MainWindow::_onSimulationStartHandler(SimulationEvent * re) {
@@ -1153,16 +1403,18 @@ void MainWindow::_onSimulationStartHandler(SimulationEvent * re) {
 	QCoreApplication::processEvents();
 }
 
-void MainWindow::_onSimulationPausedHandler(SimulationEvent * re) {
+void MainWindow::_onSimulationPausedHandler(SimulationEvent *re)
+{
 
-	_actualizeActions();
-	QCoreApplication::processEvents();
+    _actualizeActions();
+    QCoreApplication::processEvents();
 }
 
-void MainWindow::_onSimulationResumeHandler(SimulationEvent * re) {
+void MainWindow::_onSimulationResumeHandler(SimulationEvent *re)
+{
 
-	_actualizeActions();
-	QCoreApplication::processEvents();
+    _actualizeActions();
+    QCoreApplication::processEvents();
 }
 
 void MainWindow::_onSimulationEndHandler(SimulationEvent * re) {
@@ -1182,18 +1434,28 @@ void MainWindow::_onProcessEventHandler(SimulationEvent * re) {
 	QCoreApplication::processEvents();
 }
 
-void MainWindow::_onEntityCreateHandler(SimulationEvent* re) {
-
+void MainWindow::_onEntityCreateHandler(SimulationEvent *re)
+{
 }
 
-void MainWindow::_onEntityRemoveHandler(SimulationEvent* re) {
-
+void MainWindow::_onEntityRemoveHandler(SimulationEvent *re)
+{
 }
 //-----------------------------------------
 
 void MainWindow::_onSceneMouseEvent(QGraphicsSceneMouseEvent* mouseEvent) {
 	QPointF pos = mouseEvent->scenePos();
 	ui->labelMousePos->setText(QString::fromStdString("<" + std::to_string((int) pos.x()) + "," + std::to_string((int) pos.y()) + ">"));
+}
+
+void MainWindow::_onSceneWheelInEvent() {
+    int value = ui->horizontalSlider_ZoomGraphical->value();
+    ui->horizontalSlider_ZoomGraphical->setValue(value + TraitsGUI<GMainWindow>::zoomButtonChange);
+}
+
+void MainWindow::_onSceneWheelOutEvent() {
+    int value = ui->horizontalSlider_ZoomGraphical->value();
+    ui->horizontalSlider_ZoomGraphical->setValue(value - TraitsGUI<GMainWindow>::zoomButtonChange);
 }
 
 void MainWindow::_onSceneGraphicalModelEvent(GraphicalModelEvent* event) {
@@ -1203,31 +1465,59 @@ void MainWindow::_onSceneGraphicalModelEvent(GraphicalModelEvent* event) {
 //-----------------------------------------
 
 void MainWindow::sceneChanged(const QList<QRectF> &region) {
-	//_graphicalModelHasChanged = true;
-	//_actualizeTabPanes();
+    bool canUndo = ui->graphicsView->getScene()->getUndoStack()->canUndo();
+    bool canRedo = ui->graphicsView->getScene()->getUndoStack()->canRedo();
+
+    ui->actionEditUndo->setEnabled(canUndo);
+    ui->actionEditRedo->setEnabled(canRedo);
+
+    _textModelHasChanged = canUndo;
+
+    ui->graphicsView->scene()->update();
+
+    QList<QGraphicsItem *> items = ui->graphicsView->getScene()->items();
+
+    if (items.empty()) {
+        ui->actionEditCut->setEnabled(false);
+        ui->actionEditCopy->setEnabled(false);
+    } else {
+        ui->actionEditCut->setEnabled(true);
+        ui->actionEditCopy->setEnabled(true);
+    }
+
+    if (!_draw_copy->empty() || !_gmc_copies->empty() || !_group_copy->empty() || !_ports_copies->empty()) {
+        ui->actionEditPaste->setEnabled(true);
+    } else {
+        ui->actionEditPaste->setEnabled(false);
+    }
+
+    if (ui->graphicsView->getScene()->connectingStep() == 0)
+        ui->actionGModelShowConnect->setChecked(false);
+
+    ui->graphicsView->scene()->update();
 }
 
 void MainWindow::sceneFocusItemChanged(QGraphicsItem *newFocusItem, QGraphicsItem *oldFocusItem, Qt::FocusReason reason) {
 	// int a = 0;
 }
-//void sceneRectChanged(const QRectF &rect){}
+// void sceneRectChanged(const QRectF &rect){}
 
 void MainWindow::sceneSelectionChanged() {
-	if (ui->graphicsView->selectedItems().size() == 1) {
-		QGraphicsItem * item = ui->graphicsView->selectedItems().at(0);
-		GraphicalModelComponent* gmc = dynamic_cast<GraphicalModelComponent*> (item);
-		if (gmc != nullptr) {
-			// https://doc.qt.io/archives/qq/qq18-propertybrowser.html
-			// http://qt.nokia.com/products/appdev/add-on-products/catalog/4/Widgets/qtpropertybrowser/
-			// // ui->treeViewPropertyEditor->setModelBlock(gmc->getComponent());
-			ui->treeViewPropertyEditor->setActiveObject(gmc, gmc->getComponent());
-			return;
-        } else { // nothing selected
-            ui->treeViewPropertyEditor->clear();
+    QGraphicsItem * item;
+    GraphicalModelComponent* gmc;
+
+    if (!ui->graphicsView->selectedItems().isEmpty()) {
+        if (ui->graphicsView->selectedItems().size() == 1) {
+            item = ui->graphicsView->selectedItems().at(0);
+            gmc = dynamic_cast<GraphicalModelComponent*> (item);
+            if (gmc != nullptr) {
+                ui->treeViewPropertyEditor->setActiveObject(gmc, gmc->getComponent());
+                return;
+            }
         }
-    } else if (ui->graphicsView->selectedItems().size() == 0) {
-        ui->treeViewPropertyEditor->clear();
     }
+    // Se nenhum item estiver selecionado ou se mais de um item estiver selecionado
+    ui->treeViewPropertyEditor->clear();
 }
 
 //-----------------------------------------
@@ -1239,11 +1529,16 @@ void MainWindow::sceneGraphicalModelChanged() {
 //-----------------------------------------
 
 void MainWindow::_initModelGraphicsView() {
-	((ModelGraphicsView*) (ui->graphicsView))->setSceneMouseEventHandler(this, &MainWindow::_onSceneMouseEvent);
-	((ModelGraphicsView*) (ui->graphicsView))->setGraphicalModelEventHandler(this, &MainWindow::_onSceneGraphicalModelEvent);
+    ((ModelGraphicsView*) (ui->graphicsView))->setSceneMouseEventHandler(this, &MainWindow::_onSceneMouseEvent);
+    ((ModelGraphicsView *)(ui->graphicsView))->setSceneWheelInEventHandler(this, &MainWindow::_onSceneWheelInEvent);
+    ((ModelGraphicsView *)(ui->graphicsView))->setSceneWheelOutEventHandler(this, &MainWindow::_onSceneWheelOutEvent);
+    ((ModelGraphicsView*) (ui->graphicsView))->setGraphicalModelEventHandler(this, &MainWindow::_onSceneGraphicalModelEvent);
 	connect(ui->graphicsView->scene(), &QGraphicsScene::changed, this, &MainWindow::sceneChanged);
 	connect(ui->graphicsView->scene(), &QGraphicsScene::focusItemChanged, this, &MainWindow::sceneFocusItemChanged);
 	connect(ui->graphicsView->scene(), &QGraphicsScene::selectionChanged, this, &MainWindow::sceneSelectionChanged);
+
+    // Cria uma stack undo/redo
+    ui->graphicsView->getScene()->setUndoStack(new QUndoStack(this));
 }
 
 void MainWindow::_setOnEventHandlers() {
@@ -1255,6 +1550,7 @@ void MainWindow::_setOnEventHandlers() {
 	simulator->getModels()->current()->getOnEvents()->addOnProcessEventHandler(this, &MainWindow::_onProcessEventHandler);
 	simulator->getModels()->current()->getOnEvents()->addOnEntityCreateHandler(this, &MainWindow::_onEntityCreateHandler);
 	simulator->getModels()->current()->getOnEvents()->addOnEntityRemoveHandler(this, &MainWindow::_onEntityRemoveHandler);
+    simulator->getModels()->current()->getOnEvents()->addOnEntityMoveHandler(this, &MainWindow::_onMoveEntityEvent);
 	//@Todo: Check for new events that were created later
 }
 
@@ -1479,13 +1775,12 @@ void MainWindow::_showMessageNotImplemented(){
 // PRIVATE SLOTS
 //-------------------------
 
-
 // -------------------------------------
 // on Widgets
 // -------------------------------------
 
-void MainWindow::on_tabWidget_Model_tabBarClicked(int index) {
-
+void MainWindow::on_tabWidget_Model_tabBarClicked(int index)
+{
 }
 
 void MainWindow::on_checkBox_ShowElements_stateChanged(int arg1) {
@@ -1721,17 +2016,28 @@ void MainWindow::on_actionAboutGetInvolved_triggered() {
 }
 
 void MainWindow::on_actionEditUndo_triggered() {
-	_showMessageNotImplemented();
+    if (ui->graphicsView->getScene()->getUndoStack()) {
+        ui->graphicsView->getScene()->getUndoStack()->undo();
+    }
 }
 
 
 void MainWindow::on_actionEditRedo_triggered() {
-	_showMessageNotImplemented();
+    if (ui->graphicsView->getScene()->getUndoStack()) {
+        ui->graphicsView->getScene()->getUndoStack()->redo();
+    }
 }
 
 
 void MainWindow::on_actionEditFind_triggered() {
-	_showMessageNotImplemented();
+
+        // Cria um novo diálogo para Buscar componentes
+        DialogFind *find = new DialogFind(this, ui->graphicsView->getScene());
+
+        // Mostra esse dialogo na tela
+        find->show();
+
+        if (find->exec() == QDialog::Accepted) find->setFocus();
 }
 
 
@@ -1741,24 +2047,456 @@ void MainWindow::on_actionEditReplace_triggered() {
 
 
 void MainWindow::on_actionEditCut_triggered() {
-	_showMessageNotImplemented();
+    _gmc_copies->clear();
+    _ports_copies->clear();
+    _group_copy->clear();
+
+    QList<QGraphicsItem *> selecteds =  ui->graphicsView->scene()->selectedItems();
+
+    // Verifica se tem itens selecionados
+    if (selecteds.size() > 0) {
+
+        // Pega a cena
+        ModelGraphicsScene *scene = (ModelGraphicsScene *)(ui->graphicsView->getScene());
+
+        // Seta o cut
+        _cut = true;
+
+        // Adiciona na lista de cópias (conexoes, componentes e poligonos)
+        foreach (QGraphicsItem *item , ui->graphicsView->scene()->selectedItems()) {
+            QList<GraphicalModelComponent*> groupComponents  = QList<GraphicalModelComponent*>();
+            QList<GraphicalConnection*> * connGroup = new QList<GraphicalConnection*>();
+
+            // Tenta transforma em um componente grafico de modelo
+            if (GraphicalModelComponent *gmc = dynamic_cast<GraphicalModelComponent*>(item)) {
+                // Adiciona em uma lista de cópias de componentes
+                _gmc_copies->append(gmc);
+            }
+            else if (QGraphicsItemGroup *group = dynamic_cast<QGraphicsItemGroup*>(item)) {
+                for (int i = 0; i < group->childItems().size(); i++) {
+                    GraphicalModelComponent * component = dynamic_cast<GraphicalModelComponent *>(group->childItems().at(i));
+
+                    if (!component->getGraphicalInputPorts().empty() && !component->getGraphicalInputPorts().at(0)->getConnections()->empty()) {
+                        for (int j = 0; j < component->getGraphicalInputPorts().at(0)->getConnections()->size(); ++j) {
+                            connGroup->append(component->getGraphicalInputPorts().at(0)->getConnections()->at(j));
+                        }
+                    }
+
+                    for (int j = 0; j < component->getGraphicalOutputPorts().size(); ++j) {
+                        GraphicalComponentPort *port = component->getGraphicalOutputPorts().at(j);
+
+                        if (!port->getConnections()->empty()) {
+                            connGroup->append(port->getConnections()->at(0));
+                        }
+                    }
+
+                    _gmc_copies->append(component);
+                    groupComponents.append(component);
+                }
+                saveItemForCopy(&groupComponents, connGroup);
+
+                _group_copy->append(group);
+                ui->graphicsView->getScene()->insertComponentGroup(group, groupComponents);
+                for (unsigned int k = 0; k < (unsigned int) connGroup->size(); k++) {
+                    _ports_copies->append(connGroup->at(k));
+                }
+            } else if (GraphicalConnection *port = dynamic_cast<GraphicalConnection*>(item)) {
+                _ports_copies->append(port);
+            } else {
+                _draw_copy->append(item);
+            }
+
+            delete connGroup;
+        }
+
+        // Removendo as conexoes do modelo e graficamente
+        // Só não é removido a conexão quando todos os itens estão selecioinados
+        // (2x componentes e a conexão (similar ao arena)
+        saveItemForCopy(_gmc_copies, _ports_copies);
+
+        QUndoCommand *deleteUndoCommand = new DeleteUndoCommand(selecteds, scene);
+        scene->getUndoStack()->push(deleteUndoCommand);
+
+    }
+}
+
+void::MainWindow::saveItemForCopy(QList<GraphicalModelComponent*> * gmcList, QList<GraphicalConnection*> * connList) {
+    ModelGraphicsScene *scene = (ModelGraphicsScene *)(ui->graphicsView->getScene());
+
+    foreach (GraphicalConnection *conn, *connList) {
+        ModelComponent * source = conn->getSource()->component;
+        ModelComponent * dst = conn->getDestination()->component;
+
+        GraphicalModelComponent * sourceSelected = nullptr;
+        GraphicalModelComponent * dstSelected = nullptr;
+        foreach (GraphicalModelComponent * comp, *gmcList) {
+
+            if (source != nullptr) {
+
+                if (comp->getComponent()->getId() == source->getId()) {
+                    sourceSelected = comp;
+                }
+            }
+
+            if (dst != nullptr) {
+
+                if (comp->getComponent()->getId() == dst->getId()) {
+                    dstSelected = comp;
+                }
+            }
+        }
+
+        if (sourceSelected == nullptr || dstSelected == nullptr) {
+            connList->removeOne(conn);
+        }
+    }
 }
 
 
 void MainWindow::on_actionEditCopy_triggered() {
-	_showMessageNotImplemented();
-}
+    _gmc_copies->clear();
+    _ports_copies->clear();
+    _draw_copy->clear();
 
+    QList<QGraphicsItem*> selected = ui->graphicsView->scene()->selectedItems();
+
+    // Verifica se tem itens selecionados
+    if (selected.size() > 0) {
+
+        // Seta o cut
+        _cut = false;
+
+        // Adiciona na lista de cópias (conexoes, componentes e poligonos)
+        foreach (QGraphicsItem *item , ui->graphicsView->scene()->selectedItems()) {
+            // verifica se e um componente grafico
+            if (GraphicalModelComponent *gmc = dynamic_cast<GraphicalModelComponent*>(item)) {
+                // Adiciona em uma lista de cópias de componentes
+                gmc->setSelected(false);
+                _gmc_copies->append(gmc);
+            }
+            // verifica se e uma conexao grafica
+            else if (GraphicalConnection *conn = dynamic_cast<GraphicalConnection*>(item)) {
+                conn->setSelected(false);
+                _ports_copies->append(conn);
+            }
+            // verifica se e um grupo
+            else if (QGraphicsItemGroup *group = dynamic_cast<QGraphicsItemGroup*>(item)) {
+                group->setSelected(false);
+                _group_copy->append(group);
+            }
+            // se nao for nenhum deles e um desenho
+            else {
+                item->setSelected(false);
+                _draw_copy->append(item);
+            }
+        }
+
+        // Removendo as conexoes em que os seus componentes não foram selecionados
+        foreach (GraphicalConnection *conn, *_ports_copies) {
+            ModelComponent * source = conn->getSource()->component;
+            ModelComponent * dst = conn->getDestination()->component;
+
+            GraphicalModelComponent * sourceSelected = nullptr;
+            GraphicalModelComponent * dstSelected = nullptr;
+            foreach (GraphicalModelComponent * comp, *_gmc_copies) {
+
+                if (source != nullptr) {
+
+                    if (comp->getComponent()->getId() == source->getId()) {
+                        sourceSelected = comp;
+                    }
+                }
+
+                if (dst != nullptr) {
+
+                    if (comp->getComponent()->getId() == dst->getId()) {
+                        dstSelected = comp;
+                    }
+                }
+            }
+
+            // Os dois componentes foram copiados, para conseguir copiar as conexoes~
+            if (!(sourceSelected != nullptr && dstSelected != nullptr)) {
+                _ports_copies->removeOne(conn);
+
+            }
+
+        }
+    }
+
+}
 
 void MainWindow::on_actionEditPaste_triggered() {
-	_showMessageNotImplemented();
+
+    // Se tiver componente copiados
+    if (_gmc_copies->size() > 0 || _draw_copy->size() > 0 || _group_copy->size() > 0) {
+
+        // Pega a cena
+        ModelGraphicsScene *scene = (ModelGraphicsScene *)(ui->graphicsView->getScene());
+
+        if (!_cut) {
+            _helpCopy();
+        }
+
+        QUndoCommand *pasteUndoCommand = new PasteUndoCommand(_gmc_copies, _ports_copies, _group_copy, _draw_copy, scene);
+        scene->getUndoStack()->push(pasteUndoCommand);
+
+        _gmc_copies->clear();
+        _ports_copies->clear();
+        _draw_copy->clear();
+        _group_copy->clear();
+        _cut = false;
+    }
 }
 
+
+void MainWindow::_helpCopy() {
+    // Pega a cena
+    ModelGraphicsScene *scene = (ModelGraphicsScene *)(ui->graphicsView->getScene());
+
+    QList<COPY*> * aux = new QList<COPY *>();
+    QList<GraphicalModelComponent *> *gmc_aux  = new QList<GraphicalModelComponent*>();
+    QList<GraphicalModelComponent *> *gmc_old_group_aux  = new QList<GraphicalModelComponent*>();
+    QList<GraphicalModelComponent *> *gmc_new_group_aux  = new QList<GraphicalModelComponent*>();
+    QList<GraphicalConnection *> *ports_aux = new QList<GraphicalConnection*>();
+    QList<QGraphicsItem *> *drawing_aux = new QList<QGraphicsItem*>();
+    QList<QGraphicsItemGroup *> *group_aux = new QList<QGraphicsItemGroup*>();
+
+    // Adicionando todos os componentes antes
+    foreach (GraphicalModelComponent * gmc , *_gmc_copies) {
+
+        if (gmc->group())
+            continue;
+
+        // Componente
+        ModelComponent * previousComponent = gmc->getComponent();
+
+        // Adiciona o componente no modelo
+        simulator->getModels()->current()->getComponents()->insert(previousComponent);
+
+        // Nome do plugin para a copia do componente
+        std::string pluginname = previousComponent->getClassname();
+
+        // Plugin para a copia do novo component
+        Plugin* plugin = simulator->getPlugins()->find(pluginname);
+
+        // Ajustando a posicao da copia
+        //@TODO: Modificar para por onde o mouse clicou
+        QPointF position = gmc->pos();
+
+        // Copiando a cor
+        QColor color = gmc->getColor();
+
+        // Componente de Copia ou Recorte
+        ModelComponent * component  = (ModelComponent*) plugin->newInstance(simulator->getModels()->current());
+
+
+        GraphicalModelComponent* newgmc = new GraphicalModelComponent(plugin, component, position, color);
+        // Adiciona o componente graficamente
+        GraphicalModelComponent * oldgmc = scene->findGraphicalModelComponent(previousComponent->getId());
+
+        COPY * temp = new COPY();
+        temp->old = oldgmc;
+        temp->copy = newgmc;
+        aux->append(temp);
+        gmc_aux->append(newgmc);
+    }
+
+    // Adicionando todos os componentes antes
+    foreach (QGraphicsItemGroup *group , *_group_copy) {
+        QList<GraphicalConnection*> * connGroup = new QList<GraphicalConnection*>();
+
+        unsigned int size = group->childItems().size();
+
+        for (unsigned int i = 0; i < (unsigned int) size; i++) {
+            GraphicalModelComponent *gmc = dynamic_cast<GraphicalModelComponent *>(group->childItems().at(0));
+
+            // remove do grupo para tratar o componente como um componente individual
+            group->removeFromGroup(gmc);
+
+            // Componente
+            ModelComponent * previousComponent = gmc->getComponent();
+
+            // Adiciona o componente no modelo
+            simulator->getModels()->current()->getComponents()->insert(previousComponent);
+
+            // Nome do plugin para a copia do componente
+            std::string pluginname = previousComponent->getClassname();
+
+            // Plugin para a copia do novo component
+            Plugin* plugin = simulator->getPlugins()->find(pluginname);
+
+            // Ajustando a posicao da copia
+            //@TODO: Modificar para por onde o mouse clicou
+            QPointF position = gmc->pos();
+
+            // Copiando a cor
+            QColor color = gmc->getColor();
+
+            // Componente de Copia ou Recorte
+            ModelComponent * component  = (ModelComponent*) plugin->newInstance(simulator->getModels()->current());
+
+            GraphicalModelComponent* newgmc = new GraphicalModelComponent(plugin, component, position, color);
+            // Adiciona o componente graficamente
+            GraphicalModelComponent * oldgmc = scene->findGraphicalModelComponent(previousComponent->getId());
+
+            if (!oldgmc->getGraphicalInputPorts().empty() && !oldgmc->getGraphicalInputPorts().at(0)->getConnections()->empty()) {
+                connGroup->removeOne(oldgmc->getGraphicalInputPorts().at(0)->getConnections()->at(0));
+                connGroup->append(oldgmc->getGraphicalInputPorts().at(0)->getConnections()->at(0));
+            }
+
+            for (int j = 0; j < oldgmc->getGraphicalOutputPorts().size(); ++j) {
+                GraphicalComponentPort *port = oldgmc->getGraphicalOutputPorts().at(j);
+
+                if (!port->getConnections()->empty()) {
+                    connGroup->removeOne(port->getConnections()->at(0));
+                    connGroup->append(port->getConnections()->at(0));
+                }
+            }
+
+            gmc_old_group_aux->append(oldgmc);
+            gmc_new_group_aux->append(newgmc);
+            COPY * temp = new COPY();
+            temp->old = oldgmc;
+            temp->copy = newgmc;
+            aux->append(temp);
+            gmc_aux->append(newgmc);
+        }
+
+        saveItemForCopy(gmc_old_group_aux, connGroup);
+
+        // volta os itens no grupo
+        for (unsigned int k = 0; k < size; k++) {
+            group->addToGroup(gmc_old_group_aux->at(k));
+        }
+
+        for (unsigned int k = 0; k < (unsigned int) connGroup->size(); k++) {
+            _ports_copies->removeOne(connGroup->at(k));
+            _ports_copies->append(connGroup->at(k));
+        }
+
+        QGraphicsItemGroup *newGroup = new QGraphicsItemGroup();
+
+        ui->graphicsView->getScene()->insertComponentGroup(newGroup, *gmc_new_group_aux);
+
+        gmc_old_group_aux->clear();
+        gmc_new_group_aux->clear();
+        group_aux->append(newGroup);
+    }
+
+    // Adicionando as conexões (e seus respectivos componentes)
+    foreach (GraphicalConnection * conn, *_ports_copies) {
+
+        ModelComponent * source = conn->getSource()->component;
+        ModelComponent * dst = conn->getDestination()->component;
+
+        GraphicalComponentPort* sourcePort = nullptr;
+        GraphicalComponentPort* destinationPort = nullptr;
+
+        unsigned int portSourceConnection = 0;
+        unsigned int portDestinationConnection = 0;
+
+        // Ajustando a posicao da copia
+        //@TODO: Modificar para por onde o mouse clicou
+        GraphicalModelComponent * gmcSource = scene->findGraphicalModelComponent(source->getId());
+        GraphicalModelComponent * gmcDestination = scene->findGraphicalModelComponent(dst->getId());
+
+        foreach (GraphicalModelComponent * comp, *_gmc_copies) {
+
+            if (comp->getComponent()->getId() == source->getId()) {
+                sourcePort = conn->getSourceGraphicalPort();
+                portSourceConnection = conn->getPortSourceConnection();
+
+            }
+
+            if (comp->getComponent()->getId() == dst->getId()) {
+                destinationPort = conn->getDestinationGraphicalPort();
+                portDestinationConnection = conn->getPortDestinationConnection();
+            }
+        }
+
+        GraphicalModelComponent * gmcNewSource;
+        GraphicalModelComponent * gmcNewDestination;
+
+        foreach (COPY * c, *aux) {
+
+            if (c->old == gmcSource) gmcNewSource = c->copy;
+            if (c->old == gmcDestination) gmcNewDestination = c->copy;
+
+        }
+
+        // Cria GraphicalComponentPort para gmc source
+        sourcePort = gmcNewSource->getGraphicalOutputPorts().at(portSourceConnection);
+
+        // Cria GraphicalComponentPort para gmc destination
+        destinationPort = gmcNewDestination->getGraphicalInputPorts().at(portDestinationConnection);
+
+        // Conecta os componente graficamente e no modelo
+        GraphicalConnection * newConn = scene->addGraphicalConnection(sourcePort, destinationPort, portSourceConnection, portDestinationConnection);
+
+        ui->graphicsView->getScene()->clearPorts(newConn, gmcNewSource, gmcDestination);
+
+        ports_aux->append(newConn);
+    }
+
+    //Adicionando os desenhos
+    foreach(QGraphicsItem * draw, *_draw_copy) {
+        QGraphicsRectItem* rectItem = dynamic_cast<QGraphicsRectItem*>(draw);
+
+        if (rectItem) {
+            QGraphicsRectItem *copiedItem;
+            copiedItem = new QGraphicsRectItem(rectItem->rect());
+            copiedItem->setPos(rectItem->pos());
+            copiedItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+            copiedItem->setFlag(QGraphicsItem::ItemIsMovable, true);
+            drawing_aux->append(copiedItem);
+        }
+
+        QGraphicsEllipseItem* ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(draw);
+        if (ellipseItem) {
+            QGraphicsEllipseItem *copiedItem;
+            copiedItem = new QGraphicsEllipseItem(ellipseItem->rect());
+            copiedItem->setPos(ellipseItem->pos());
+            copiedItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+            copiedItem->setFlag(QGraphicsItem::ItemIsMovable, true);
+            drawing_aux->append(copiedItem);
+        }
+
+        QGraphicsPolygonItem* polygonItem = dynamic_cast<QGraphicsPolygonItem*>(draw);
+        if (polygonItem) {
+            QGraphicsPolygonItem *copiedItem;
+            copiedItem = new QGraphicsPolygonItem(polygonItem->polygon());
+            copiedItem->setPos(polygonItem->pos());
+            copiedItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+            copiedItem->setFlag(QGraphicsItem::ItemIsMovable, true);
+            drawing_aux->append(copiedItem);
+        }
+
+        QGraphicsLineItem *lineItem = dynamic_cast<QGraphicsLineItem*>(draw);
+        if (lineItem) {
+            QGraphicsLineItem *copiedItem;
+            copiedItem = new QGraphicsLineItem(lineItem->line());
+            copiedItem->setPos(lineItem->pos());
+            copiedItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+            copiedItem->setFlag(QGraphicsItem::ItemIsMovable, true);
+            drawing_aux->append(copiedItem);
+        }
+    }
+
+    _gmc_copies = gmc_aux;
+    _ports_copies = ports_aux;
+    _draw_copy = drawing_aux;
+    _group_copy = group_aux;
+
+}
+
+void MainWindow::on_actionShowGrid_triggered() {
+    ui->graphicsView->getScene()->showGrid();
+}
 
 void MainWindow::on_actionShowRule_triggered() {
 	_showMessageNotImplemented();
 }
-
 
 void MainWindow::on_actionShowGuides_triggered() {
 	_showMessageNotImplemented();
@@ -1784,19 +2522,89 @@ void MainWindow::on_actionZoom_All_triggered() {
 
 
 void MainWindow::on_actionDrawLine_triggered() {
-	_showMessageNotImplemented();
+    ModelGraphicsScene* scene = ui->graphicsView->getScene();
+    if (!checkSelectedDrawIcons() && ui->actionDrawLine->isChecked()) {
+        ui->actionDrawLine->setChecked(true);
+        // Ative a ferramenta de desenho de linha
+        scene->setAction(ui->actionDrawLine);
+        scene->setDrawingMode(ModelGraphicsScene::DrawingMode::LINE); // Enumeração que representa o modo de desenho de linha
+    } else {
+        unselectDrawIcons();
+    }
 }
 
 
 void MainWindow::on_actionDrawRectangle_triggered() {
-	_showMessageNotImplemented();
+    ModelGraphicsScene* scene = ui->graphicsView->getScene();
+    // Ative a ferramenta de desenho de retangulo
+    if (!checkSelectedDrawIcons() && ui->actionDrawRectangle->isChecked()) {
+        ui->actionDrawRectangle->setChecked(true);
+        scene->setAction(ui->actionDrawRectangle);
+        scene->setDrawingMode(ModelGraphicsScene::DrawingMode::RECTANGLE);
+    } else {
+        unselectDrawIcons();
+    }
 }
 
 
 void MainWindow::on_actionDrawEllipse_triggered() {
-	_showMessageNotImplemented();
+    ModelGraphicsScene* scene = ui->graphicsView->getScene();
+    // Ative a ferramenta de desenho de ellipse
+    if (!checkSelectedDrawIcons() && ui->actionDrawEllipse->isChecked()) {
+        ui->actionDrawEllipse->setChecked(true);
+        scene->setAction(ui->actionDrawEllipse);
+        scene->setDrawingMode(ModelGraphicsScene::DrawingMode::ELLIPSE);
+    } else {
+        unselectDrawIcons();
+    }
 }
 
+void MainWindow::on_actionDrawText_triggered()
+{
+    ModelGraphicsScene* scene = ui->graphicsView->getScene();
+    if (!checkSelectedDrawIcons() && ui->actionDrawText->isChecked()) {
+        ui->actionDrawText->setChecked(true);
+        scene->setAction(ui->actionDrawText);
+        // Ative a ferramenta de desenho do texto
+        scene->setDrawingMode(ModelGraphicsScene::DrawingMode::TEXT);
+    } else {
+        unselectDrawIcons();
+    }
+}
+
+void MainWindow::on_actionDrawPoligon_triggered()
+{
+    ModelGraphicsScene* scene = ui->graphicsView->getScene();
+    if (!checkSelectedDrawIcons() && ui->actionDrawPoligon->isChecked()) {
+        ui->actionDrawPoligon->setChecked(true);
+        scene->setAction(ui->actionDrawPoligon);
+        // Ative a ferramenta de desenho do polygon
+        scene->setDrawingMode(ModelGraphicsScene::DrawingMode::POLYGON);
+    } else {
+        unselectDrawIcons();
+    }
+}
+
+void MainWindow::unselectDrawIcons() {
+    ModelGraphicsScene* scene = ui->graphicsView->getScene();
+    ui->actionDrawLine->setChecked(false);
+    ui->actionDrawRectangle->setChecked(false);
+    ui->actionDrawEllipse->setChecked(false);
+    ui->actionDrawPoligon->setChecked(false);
+    ui->actionDrawText->setChecked(false);
+    scene->setDrawingMode(ModelGraphicsScene::DrawingMode::NONE);
+}
+
+bool MainWindow::checkSelectedDrawIcons() {
+    int alreadyChecked = 0;
+    if(ui->actionDrawLine->isChecked()) alreadyChecked++;
+    if(ui->actionDrawRectangle->isChecked()) alreadyChecked++;
+    if(ui->actionDrawEllipse->isChecked()) alreadyChecked++;
+    if(ui->actionDrawPoligon->isChecked()) alreadyChecked++;
+    if(ui->actionDrawText->isChecked()) alreadyChecked++;
+    if (alreadyChecked > 1) return true;
+    else return false;
+}
 
 void MainWindow::on_actionAnimateVariable_triggered() {
 	_showMessageNotImplemented();
@@ -1825,7 +2633,7 @@ void MainWindow::on_actionAnimateStation_triggered() {
 
 void MainWindow::on_actionEditDelete_triggered()
 {
-	_showMessageNotImplemented();
+    _showMessageNotImplemented();
 }
 
 
@@ -1873,18 +2681,6 @@ void MainWindow::on_actionAnimateSimulatedTime_triggered()
 
 
 
-void MainWindow::on_actionDrawText_triggered()
-{
-	_showMessageNotImplemented();
-}
-
-
-void MainWindow::on_actionDrawPoligon_triggered()
-{
-	_showMessageNotImplemented();
-}
-
-
 void MainWindow::on_actionAnimateCounter_triggered()
 {
 	_showMessageNotImplemented();
@@ -1914,6 +2710,11 @@ void MainWindow::on_actionAnimateStatistics_triggered()
 	_showMessageNotImplemented();
 }
 
+void MainWindow::on_actionSimulatorPluginManager_triggered()
+{
+	DialogPluginManager* dialog = new DialogPluginManager(this);
+	dialog->show();
+}
 
 void MainWindow::on_actionEditGroup_triggered()
 {
@@ -1962,12 +2763,14 @@ void MainWindow::on_actionViewConfigure_triggered()
 	_showMessageNotImplemented();
 }
 
-//void MainWindow::on_actionConfigure_triggered() {//?????????????????????????
-//}
-//void MainWindow::on_actionOpen_triggered() {//?????????????????????????
-//}
+// void MainWindow::on_actionConfigure_triggered() {//?????????????????????????
+// }
+// void MainWindow::on_actionOpen_triggered() {//?????????????????????????
+// }
 
 void MainWindow::_initUiForNewModel(Model* m) {
+    _actualizeUndo();
+    ui->graphicsView->getScene()->clearAnimations();
 	ui->graphicsView->getScene()->showGrid(); //@TODO: Bad place to be
 	ui->textEdit_Simulation->clear();
 	ui->textEdit_Reports->clear();
@@ -2005,6 +2808,14 @@ void MainWindow::_initUiForNewModel(Model* m) {
 	_actualizeActions();
 	_actualizeTabPanes();
 }
+
+void MainWindow::_actualizeUndo() {
+    undoView = new QUndoView(ui->graphicsView->getScene()->getUndoStack());
+    undoView->setWindowTitle(tr("Command List"));
+    undoView->setVisible(false);
+    undoView->setAttribute(Qt::WA_QuitOnClose, false);
+}
+
 void MainWindow::on_actionModelNew_triggered() {
 	Model* m;
 	if ((m = simulator->getModels()->current()) != nullptr) {
@@ -2024,81 +2835,136 @@ void MainWindow::on_actionModelNew_triggered() {
 	_initUiForNewModel(m);
 }
 
-
 void MainWindow::on_actionModelOpen_triggered()
 {
-	QString fileName = QFileDialog::getOpenFileName(
-			this, "Open Model", "./models/",
-			tr("All files (*.*);;Genesys model (*.gen)"));
-	if (fileName == "") {
-		return;
-	}
-	_insertCommandInConsole("load " + fileName.toStdString());
-	// load Model (in the simulator)
-	if (this->_loadGraphicalModel(fileName.toStdString())) {
-		QMessageBox::information(this, "Open Model", "Model successfully oppened");
-	} else {
-		QMessageBox::warning(this, "Open Model", "Error while opening model");
-		_actualizeActions();
-		_actualizeTabPanes();
-	}
+    Model *m;
+    if ((m = simulator->getModels()->current()) != nullptr) {
 
+        QMessageBox msgBox;
+        msgBox.setIcon(QMessageBox::Question);
+        msgBox.setWindowTitle("New Model");
+        msgBox.setText("There is a model already opened. Do you want to close it and create a new model?");
+        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox.setDefaultButton(QMessageBox::No);
+        int reply = msgBox.exec();
+
+        if (reply == QMessageBox::No) return;
+        else on_actionModelClose_triggered();
+    }
+
+    QString fileName = QFileDialog::getOpenFileName(
+        this, "Open Model", "./models/",
+        tr("Genesys Graphic Model (*.gui);;Genesys Model (*.gen);;XML Files (*.xml);;JSON Files (*.json);;C++ Files (*.cpp)"), nullptr, QFileDialog::DontUseNativeDialog);
+
+    if (fileName == "")
+    {
+        return;
+    }
+    _insertCommandInConsole("load " + fileName.toStdString());
+    // load Model (in the simulator)
+
+    Model *model = this->_loadGraphicalModel(fileName.toStdString());
+
+    if (model != nullptr) {
+        _initUiForNewModel(model);
+        QMessageBox::information(this, "Open Model", "Model successfully oppened");
+    }
+    else
+    {
+        QMessageBox::warning(this, "Open Model", "Error while opening model");
+        _actualizeActions();
+        _actualizeTabPanes();
+    }
+    ui->graphicsView->getScene()->getUndoStack()->clear();
 }
-
 
 void MainWindow::on_actionModelSave_triggered()
 {
-	QString fileName = QFileDialog::getSaveFileName(this,
-			tr("Save Model"), _modelfilename,
-			tr("Genesys Model (*.gen);;All Files (*)"));
-	if (fileName.isEmpty())
-		return;
-	else {
-		_insertCommandInConsole("save " + fileName.toStdString());
-		QFile file(fileName);
-		if (!file.open(QIODevice::WriteOnly)) {
-			QMessageBox::information(this, tr("Unable to access file to save"),
-					file.errorString());
-			return;
-		}
-		std::ofstream savefile;
-		savefile.open(fileName.toStdString(), std::ofstream::out);
-		QString data = ui->TextCodeEditor->toPlainText();
-		QStringList strList = data.split(QRegExp("[\n]"), QString::SkipEmptyParts);
-		for (unsigned int i = 0; i < strList.size(); i++) {
+    QString filename = QFileDialog::getSaveFileName(this,
+        tr("Save Model"), _modelfilename,
+        tr("Genesys Model (*.gen)"), nullptr, QFileDialog::DontUseNativeDialog);
 
-			savefile << strList.at(i).toStdString() << std::endl;
-		}
-		savefile.close();
-		_saveGraphicalModel(fileName.toStdString() + ".gui");
-		_modelfilename = fileName;
-		QMessageBox::information(this, "Save Model", "Model successfully saved");
-		// convert text info Model
-		_setSimulationModelBasedOnText();
-		//
-		_actualizeModelTextHasChanged(false);
-	}
-	_actualizeActions();
+    if (filename.isEmpty()) return;
+    else
+    {
+        _insertCommandInConsole("save " + filename.toStdString());
+        QString finalFileName = filename + ".gen";
+        QFile saveFile(finalFileName);
+
+        if (!saveFile.open(QIODevice::WriteOnly))
+        {
+            QMessageBox::information(this, tr("Unable to access file to save"),
+                                     saveFile.errorString());
+            return;
+        } else {
+            _saveTextModel(&saveFile, ui->TextCodeEditor->toPlainText());
+            saveFile.close();
+        }
+        _saveGraphicalModel(filename + ".gui");
+        _modelfilename = filename;
+        QMessageBox::information(this, "Save Model", "Model successfully saved");
+        // convert text info Model
+        _setSimulationModelBasedOnText();
+        //
+        _actualizeModelTextHasChanged(false);
+    }
+    _actualizeActions();
+    ui->graphicsView->getScene()->getUndoStack()->clear();
 }
 
+void MainWindow::closeEvent(QCloseEvent *event) {
+    // limpando referencia do ultimo elemento selecionado em property editor
+	// // // ui->treeViewPropertyEditor->clearCurrentlyConnectedObject();
+
+    QMainWindow::closeEvent(event);
+}
 
 void MainWindow::on_actionModelClose_triggered()
 {
-	if (_textModelHasChanged || simulator->getModels()->current()->hasChanged()) {
-		QMessageBox::StandardButton res = QMessageBox::question(this, "Close ModelSyS", "Model has changed. Do you want to save it?", QMessageBox::Yes | QMessageBox::No);
-		if (res == QMessageBox::Yes) {
-			this->on_actionModelSave_triggered();
-			return;
-		}
-	}
+    if (_textModelHasChanged || simulator->getModels()->current()->hasChanged()) {
+        QMessageBox msgBox;
+        msgBox.setIcon(QMessageBox::Question);
+        msgBox.setWindowTitle("Close ModelSyS");
+        msgBox.setText("Model has changed. Do you want to save it?");
+        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+        msgBox.setDefaultButton(QMessageBox::Yes);
+        int reply = msgBox.exec();
+
+        if (reply == QMessageBox::Yes) {
+            this->on_actionModelSave_triggered();
+        }
+    }
 	_insertCommandInConsole("close");
-	ui->graphicsView->clear();
-	simulator->getModels()->remove(simulator->getModels()->current());
-	_actualizeActions();
-	_actualizeTabPanes();
+
+    // quando a cena é fechada, limpo o grid associado a ela
+    ui->graphicsView->getScene()->grid()->clear();
+    // volto o botao de grid para "não clicado"
+    ui->actionShowGrid->setChecked(false);
+
+    _clearModelEditors();
+
+    // limpando tudo a que se refere à cena
+    ui->graphicsView->getScene()->getUndoStack()->clear();
+    ui->graphicsView->getScene()->getGraphicalModelComponents()->clear();
+    ui->graphicsView->getScene()->getGraphicalConnections()->clear();
+    ui->graphicsView->getScene()->getAllComponents()->clear();
+    ui->graphicsView->getScene()->clear();
+    ui->graphicsView->clear();
+
+	// limpando referencia do ultimo elemento selecionado em property editor
+	// // // ui->treeViewPropertyEditor->clearCurrentlyConnectedObject();
+
+    // limpando tudo a que se refere ao modelo
+    simulator->getModels()->current()->getComponents()->getAllComponents()->clear();
+    simulator->getModels()->current()->getComponents()->clear();
+    ui->progressBarSimulation->setValue(0); // Seta o progresso da simulação para zero
+    simulator->getModels()->remove(simulator->getModels()->current());
+
+    ui->actionActivateGraphicalSimulation->setChecked(false);
+    _actualizeActions();
+    _actualizeTabPanes();
 	//QMessageBox::information(this, "Close Model", "Model successfully closed");
 }
-
 
 void MainWindow::on_actionModelInformation_triggered()
 {
@@ -2106,20 +2972,19 @@ void MainWindow::on_actionModelInformation_triggered()
 	diag->show();
 }
 
-
 void MainWindow::on_actionModelCheck_triggered()
 {
+    //_onAfterProcessEventHandlers
 	_insertCommandInConsole("check");
 	bool res = simulator->getModels()->current()->check();
 	_actualizeActions();
 	_actualizeTabPanes();
-	if (res) {
-		QMessageBox::information(this, "Model Check", "Model successfully checked.");
+    if (res) {
+        QMessageBox::information(this, "Model Check", "Model successfully checked.");
 	} else {
 		QMessageBox::critical(this, "Model Check", "Model has erros. See the console for more information.");
 	}
 }
-
 
 void MainWindow::on_actionSimulatorExit_triggered()
 {
@@ -2133,12 +2998,11 @@ void MainWindow::on_actionSimulatorExit_triggered()
 	}
 	res = QMessageBox::question(this, "Exit GenESyS", "Do you want to exit GenESyS?", QMessageBox::Yes | QMessageBox::No);
 	if (res == QMessageBox::Yes) {
-		QApplication::quit();
+       std::exit(EXIT_SUCCESS);
 	} else {
 		// it does not quit, but the window is closed. Check it. @TODO
 	}
 }
-
 
 void MainWindow::on_actionSimulationConfigure_triggered()
 {
@@ -2146,12 +3010,139 @@ void MainWindow::on_actionSimulationConfigure_triggered()
 	dialog->show();
 }
 
-
-
-
-void MainWindow::on_actionSimulatorsPluginManager_triggered()
+void MainWindow::on_treeWidgetDataDefnitions_itemDoubleClicked(QTreeWidgetItem *item, int column)
 {
-	DialogPluginManager* dialog = new DialogPluginManager(this);
-	dialog->show();
+
+    // Check if the column index is 2 (Name column)
+    if (column == 2) {
+
+        // Set the Qt::ItemIsEditable flag to enable editing for the specific item
+        // It's required to set the flag here because otherwise all the other fields could changed too.
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+
+        // Initiate the editing of the specified item in the specified column in the QTreeWidget
+        ui->treeWidgetDataDefnitions->editItem(item, column);
+
+         // Reset the Qt::ItemIsEditable flag to disable further editing after the edit operation
+        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+
+    }
+
 }
+
+void MainWindow::on_treeWidgetDataDefnitions_itemChanged(QTreeWidgetItem *item, int column)
+{
+
+    // Check if the column index is 2 (Name column)
+    if (column == 2) {
+
+        // Get the changes
+        QString after = item->text(column);
+        Model * m = simulator->getModels()->current();
+
+        // Save in the model
+        for (std::string dataTypename : *m->getDataManager()->getDataDefinitionClassnames()) {
+            for (ModelDataDefinition* comp : *m->getDataManager()->getDataDefinitionList(dataTypename)->list()) {
+
+                QString id = QString::fromStdString(Util::StrIndex(comp->getId()));
+
+                if (id.contains(item->text(0)))
+                    comp->setName(after.toStdString());
+            }
+        }
+    }
+
+}
+
+
+void MainWindow::on_actionShowSnap_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    if (scene->getSnapToGrid()) {
+        scene->setSnapToGrid(false);
+    } else {
+        scene->setSnapToGrid(true);
+    }
+}
+
+void MainWindow::on_actionViewGroup_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->groupComponents(false);
+}
+
+
+void MainWindow::on_actionViewUngroup_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->ungroupComponents();
+}
+
+void MainWindow::on_actionArranjeLeft_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->arranjeModels(0);
+}
+
+
+void MainWindow::on_actionArranjeCenter_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->arranjeModels(4);
+}
+
+
+void MainWindow::on_actionArranjeRight_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->arranjeModels(1);
+}
+
+
+void MainWindow::on_actionArranjeTop_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->arranjeModels(2);
+}
+
+
+void MainWindow::on_actionArranjeMiddle_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->arranjeModels(5);
+}
+
+
+void MainWindow::on_actionArranjeBototm_triggered()
+{
+    ModelGraphicsScene* scene = (ModelGraphicsScene*) (ui->graphicsView->scene());
+    scene->arranjeModels(3);
+}
+
+void MainWindow::on_actionGModelShowConnect_triggered()
+{
+    if (!ui->actionGModelShowConnect->isChecked() && !_firstClickShowConnection) {
+        ui->actionGModelShowConnect->setChecked(false);
+        ui->graphicsView->getScene()->setConnectingStep(0);
+        ui->graphicsView->setCursor(Qt::ArrowCursor);
+    } else {
+        ui->actionGModelShowConnect->setChecked(true);
+        ui->graphicsView->getScene()->setConnectingStep(1);
+        _firstClickShowConnection = false;
+    }
+}
+
+//void MainWindow::on_actionSelect_all_triggered()
+//{
+//    QList<QGraphicsItem *> itensToScene = ui->graphicsView->getScene()->items();
+//    for (unsigned int i = 0; i < (unsigned int) itensToScene.size(); i++) {
+//        itensToScene.at(i)->setSelected(true);
+//    }
+//}
+
+
+//void MainWindow::on_actionteste_triggered()
+//{
+//    _graphicalSimulation = (!_graphicalSimulation);
+//}
 

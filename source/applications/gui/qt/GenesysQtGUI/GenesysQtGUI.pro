@@ -69,7 +69,12 @@ SOURCES += \
 	../../../../plugins/components/Assign.cpp \
 	../../../../plugins/components/Batch.cpp \
 	../../../../plugins/components/Buffer.cpp \
-	../../../../plugins/components/CellularAutomata.cpp \
+	../../../../plugins/components/CellularAutomata/Cell.cpp \
+	../../../../plugins/components/CellularAutomata/CellularAutomataBase.cpp \
+	../../../../plugins/components/CellularAutomata/Lattice.cpp \
+	../../../../plugins/components/CellularAutomata/StateSet.cpp \
+	../../../../plugins/components/CellularAutomata/StateSet_Enumerable.cpp \
+	../../../../plugins/components/CellularAutomataComp.cpp \
 	../../../../plugins/components/Clone.cpp \
 	../../../../plugins/components/CppForG.cpp \
 	../../../../plugins/components/Create.cpp \
@@ -133,11 +138,21 @@ SOURCES += \
 	../../../../tools/SolverDefaultImpl1.cpp \
 	../../../BaseGenesysTerminalApplication.cpp \
 	../../../terminal/GenesysShell/GenesysShell.cpp \
+	../../../terminal/examples/smarts/Smart_CellularAutomata.cpp \
+    AnimationTransition.cpp \
 	CodeEditor.cpp \
+	DataComponentProperty.cpp \
 	ModelGraphicsScene.cpp \
 	ModelGraphicsView.cpp \
 	ObjectPropertyBrowser.cpp \
 	PropertyEditor.cpp \
+    actions/AddUndoCommand.cpp \
+    actions/DeleteUndoCommand.cpp \
+    actions/GroupUndoCommand.cpp \
+    actions/MoveUndoCommand.cpp \
+    actions/PasteUndoCommand.cpp \
+    actions/UngroupUndoCommand.cpp \
+    dialogs/DialogFind.cpp \
 	dialogs/Dialogmodelinformation.cpp \
 	dialogs/dialogBreakpoint.cpp \
 	dialogs/dialogpluginmanager.cpp \
@@ -155,6 +170,7 @@ SOURCES += \
 	graphicals/GraphicalAssociation.cpp \
 	graphicals/GraphicalComponentPort.cpp \
 	graphicals/GraphicalConnection.cpp \
+    graphicals/GraphicalImageAnimation.cpp \
 	graphicals/GraphicalModelComponent.cpp \
 	graphicals/GraphicalModelDataDefinition.cpp \
 	main.cpp \
@@ -242,7 +258,29 @@ HEADERS += \
 	../../../../plugins/components/Assign.h \
 	../../../../plugins/components/Batch.h \
 	../../../../plugins/components/Buffer.h \
-	../../../../plugins/components/CellularAutomata.h \
+	../../../../plugins/components/CellularAutomata/BoundaryCondition.h \
+	../../../../plugins/components/CellularAutomata/Boundary_Closed.h \
+	../../../../plugins/components/CellularAutomata/Boundary_Fixed.h \
+	../../../../plugins/components/CellularAutomata/Cell.h \
+	../../../../plugins/components/CellularAutomata/CellularAutomataBase.h \
+	../../../../plugins/components/CellularAutomata/CellularAutomata_1DTimed.h \
+	../../../../plugins/components/CellularAutomata/CellularAutomata_Classic.h \
+	../../../../plugins/components/CellularAutomata/Lattice.h \
+	../../../../plugins/components/CellularAutomata/LocalRule.h \
+	../../../../plugins/components/CellularAutomata/LocalRule_Elementary.h \
+	../../../../plugins/components/CellularAutomata/LocalRule_FlorestalFire.h \
+	../../../../plugins/components/CellularAutomata/LocalRule_GameOfLife.h \
+	../../../../plugins/components/CellularAutomata/LocalRule_Growty.h \
+	../../../../plugins/components/CellularAutomata/LocalRule_ShowNeighbordhood.h \
+	../../../../plugins/components/CellularAutomata/Neighborhood.h \
+	../../../../plugins/components/CellularAutomata/Neighborhood_Center.h \
+	../../../../plugins/components/CellularAutomata/Neighborhood_Moore.h \
+	../../../../plugins/components/CellularAutomata/Neighborhood_VonNeumann.h \
+	../../../../plugins/components/CellularAutomata/State.h \
+	../../../../plugins/components/CellularAutomata/StateSet.h \
+	../../../../plugins/components/CellularAutomata/StateSet_Enumerable.h \
+	../../../../plugins/components/CellularAutomata/State_Numerical.h \
+	../../../../plugins/components/CellularAutomataComp.h \
 	../../../../plugins/components/Clone.h \
 	../../../../plugins/components/CppForG.h \
 	../../../../plugins/components/Create.h \
@@ -315,12 +353,15 @@ HEADERS += \
 	../../../terminal/GenesysShell/GenesysShell.h \
 	../../../terminal/GenesysShell/GenesysShell_if.h \
 	../../../terminal/TraitsTerminalApp.h \
+	../../../terminal/examples/smarts/Smart_CellularAutomata.h \
+    AnimationTransition.h \
 	CodeEditor.h \
 	LineNumberArea.h \
 	ModelGraphicsScene.h \
 	ModelGraphicsView.h \
 	ObjectPropertyBrowser.h \
 	PropertyEditor.h \
+	DataComponentProperty.h \
     QPropertyBrowser/qtbuttonpropertybrowser.h \
     QPropertyBrowser/qteditorfactory.h \
     QPropertyBrowser/qtgroupboxpropertybrowser.h \
@@ -331,6 +372,13 @@ HEADERS += \
     QPropertyBrowser/qtvariantproperty.h \
     TraitsGUI.h \
     UtilGUI.h \
+    actions/AddUndoCommand.h \
+    actions/DeleteUndoCommand.h \
+    actions/GroupUndoCommand.h \
+    actions/MoveUndoCommand.h \
+    actions/PasteUndoCommand.h \
+    actions/UngroupUndoCommand.h \
+    dialogs/DialogFind.h \
 	dialogs/Dialogmodelinformation.h \
 	dialogs/dialogBreakpoint.h \
 	dialogs/dialogpluginmanager.h \
@@ -340,6 +388,7 @@ HEADERS += \
 	graphicals/GraphicalAssociation.h \
 	graphicals/GraphicalComponentPort.h \
 	graphicals/GraphicalConnection.h \
+    graphicals/GraphicalImageAnimation.h \
 	graphicals/GraphicalModelComponent.h \
 	graphicals/GraphicalModelDataDefinition.h \
 	mainwindow.h \
@@ -364,6 +413,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
+	../../../../../autoloadplugins.txt \
 	QPropertyBrowser/CMakeLists.txt \
 	QPropertyBrowser/images/cursor-arrow.png \
 	QPropertyBrowser/images/cursor-busy.png \
@@ -388,3 +438,4 @@ DISTFILES += \
 RESOURCES += \
 	GenesysQtGUI_resources.qrc \
 	QPropertyBrowser/qtpropertybrowser.qrc
+

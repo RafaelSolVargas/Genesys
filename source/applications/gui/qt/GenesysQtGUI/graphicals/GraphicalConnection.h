@@ -19,7 +19,7 @@ public:
 	};
 
 public:
-	GraphicalConnection(GraphicalComponentPort* sourceGraphicalPort, GraphicalComponentPort* destinationGraphicalPort, QColor color = Qt::black, QGraphicsItem *parent = nullptr);
+    GraphicalConnection(GraphicalComponentPort* sourceGraphicalPort, GraphicalComponentPort* destinationGraphicalPort, unsigned int portSourceConnection = 0, unsigned int portDestinationConnection = 0, QColor color = Qt::black, QGraphicsItem *parent = nullptr);
 	GraphicalConnection(const GraphicalConnection& orig);
 	virtual ~GraphicalConnection();
 public:
@@ -27,9 +27,14 @@ public:
 	void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 	Connection* getSource() const;
 	Connection* getDestination() const;
+    GraphicalComponentPort* getSourceGraphicalPort();
+    GraphicalComponentPort* getDestinationGraphicalPort();
 	void updateDimensionsAndPosition();
 	GraphicalConnection::ConnectionType connectionType() const;
+    unsigned int getPortSourceConnection() const;
+    unsigned int getPortDestinationConnection() const;
 	void setConnectionType(GraphicalConnection::ConnectionType newConnectionType);
+    QList<QPointF> getPoints() const;
 
 protected: // virtual
 	virtual bool sceneEvent(QEvent *event) override;
@@ -58,6 +63,9 @@ private:
 	Connection* _destinationConnection;
 	GraphicalComponentPort* _sourceGraphicalPort;
 	GraphicalComponentPort* _destinationGraphicalPort;
+    unsigned int _portSourceConnection;
+    unsigned int _portDestinationConnection;
 	QColor _color;
+    QList<QPointF> _points;
 };
 #endif // GRAPHICALCONNECTION_H

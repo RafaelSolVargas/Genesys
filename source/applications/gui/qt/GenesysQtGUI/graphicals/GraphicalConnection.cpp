@@ -2,8 +2,8 @@
 #include "GraphicalModelComponent.h"
 #include <QPainter>
 
-GraphicalConnection::GraphicalConnection(GraphicalComponentPort* sourceGraphicalPort, GraphicalComponentPort* destinationGraphicalPort, QColor color, QGraphicsItem *parent) : QGraphicsObject(parent) {
-	/// connect in the model
+GraphicalConnection::GraphicalConnection(GraphicalComponentPort* sourceGraphicalPort, GraphicalComponentPort* destinationGraphicalPort, unsigned int portSourceConnection, unsigned int portDestinationConnection, QColor color, QGraphicsItem *parent) : QGraphicsObject(parent) {
+	//// connect in the model
 	//ModelComponent* sourceComponent = sourceGraphicalPort->graphicalComponent()->getComponent();
 	//ModelComponent* destComponent=destinationGraphicalPort->graphicalComponent()->getComponent();
 	//_sourceConnection = new Connection({sourceComponent,sourceGraphicalPort->portNum()});
@@ -11,12 +11,14 @@ GraphicalConnection::GraphicalConnection(GraphicalComponentPort* sourceGraphical
 	//sourceComponent->getConnections()->insertAtRank(sourceGraphicalPort->portNum(), _destinationConnection);
 	// connect graphically
 	_sourceGraphicalPort = sourceGraphicalPort;
-	_destinationGraphicalPort = destinationGraphicalPort;
+    _destinationGraphicalPort = destinationGraphicalPort;
 	_sourceConnection = new Connection({sourceGraphicalPort->graphicalComponent()->getComponent(), {sourceGraphicalPort->portNum()}});
-	_destinationConnection = new Connection({_destinationGraphicalPort->graphicalComponent()->getComponent(), {_destinationGraphicalPort->portNum()}});
-	_color = color;
-	setFlags(QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsFocusable);
-	setAcceptHoverEvents(true);
+    _destinationConnection = new Connection({_destinationGraphicalPort->graphicalComponent()->getComponent(), {_destinationGraphicalPort->portNum()}});
+    _portSourceConnection = portSourceConnection;
+    _portDestinationConnection = portDestinationConnection;
+    _color = color;
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsFocusable);
+    setAcceptHoverEvents(true);
 	setAcceptTouchEvents(true);
 	setActive(true);
 	setSelected(false);
@@ -119,7 +121,12 @@ void GraphicalConnection::paint(QPainter *painter, const QStyleOptionGraphicsIte
 	switch (_connectionType) {
 		case ConnectionType::HORIZONTAL:
 			path.lineTo((x1 + x2) / 2, y1);
-			path.lineTo((x1 + x2) / 2, y2);
+            path.lineTo((x1 + x2) / 2, y2);
+            _points.clear();
+            _points.append(mapToScene(inipos));
+            _points.append(mapToScene(QPointF(inipos.x() + ((x1 + x2) / 2), y1)));
+            _points.append(mapToScene(QPointF(inipos.x() + ((x1 + x2) / 2), y2)));
+            _points.append(mapToScene(endpos));
 			break;
 		case ConnectionType::VERTICAL:
 			path.lineTo(x1, (y1 + y2) / 2);
@@ -154,6 +161,10 @@ void GraphicalConnection::paint(QPainter *painter, const QStyleOptionGraphicsIte
 	//painter->drawRect(QRectF(0,0,_width-1,_height-1));
 }
 
+QList<QPointF> GraphicalConnection::getPoints() const {
+    return _points;
+}
+
 Connection* GraphicalConnection::getSource() const {
 	return _sourceConnection;
 }
@@ -164,4 +175,18 @@ Connection* GraphicalConnection::getDestination() const {
 
 bool GraphicalConnection::sceneEvent(QEvent *event) {
 	QGraphicsObject::sceneEvent(event);
+    return true;
+}
+
+unsigned int GraphicalConnection::getPortSourceConnection() const {
+    return _portSourceConnection;
+}
+unsigned int GraphicalConnection::getPortDestinationConnection() const {
+    return _portDestinationConnection;
+}
+GraphicalComponentPort* GraphicalConnection::getSourceGraphicalPort() {
+	return _sourceGraphicalPort;
+}
+GraphicalComponentPort* GraphicalConnection::getDestinationGraphicalPort(){
+    return _destinationGraphicalPort;
 }

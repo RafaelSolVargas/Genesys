@@ -1,0 +1,14 @@
+# Genesys Simulation Model
+# Simulator, Model and Simulation infos
+0   Simulator  "GenESyS - GENeric and Expansible SYstem Simulator" versionNumber=230914 
+0   ModelInfo  "Model 1" version="1.0" projectTitle="" description="" analystName="" 
+0   ModelSimulation "" showReportsAfterSimulation=1 showReportsAfterReplicaton=1 showSimulationControlsInReport=1 terminatingCondition="" numberOfReplications=1 showSimulationResposesInReport=0 traceLevel=0 replicationLength=60.000000 replicationLengthTimeUnit=5 warmUpTime=0.000000 replicationBaseTimeUnit=5 warmUpTimeTimeUnit=5 
+
+# Model Data Definitions
+
+# Model Components
+63  Create     "Create_1" entityType="entitytype" firstCreation=0.000000 maxCreations="4294967295" timeBetweenCreationsTimeUnit=5 timeBetweenCreations="EXPO(1.0)" nextId=66 nexts=1 caption="" entitiesPerCreation=1 reportStatistics=1 
+66  Seize      "Seize_1" resquests=0 allocationType=5 nextId=67 priorityExpression=="" priority==0 nexts=1 caption="" reportStatistics=1 
+67  Buffer     "Buffer_2" nextId=68 nexts=1 caption="" reportStatistics=1 
+68  Delay      "Delay_1" allocation=4 delayExpression="1.0" delayExpressionTimeUnit=5 nextId=69 nexts=1 caption="" reportStatistics=1 
+69  Release    "Release_1" resquests=0 priority=0 nexts=0 caption="" reportStatistics=1 

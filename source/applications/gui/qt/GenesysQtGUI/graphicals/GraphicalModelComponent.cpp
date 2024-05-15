@@ -74,7 +74,7 @@ GraphicalModelComponent::GraphicalModelComponent(Plugin* plugin, ModelComponent*
 	setAcceptTouchEvents(true);
 	setActive(true);
 	setSelected(false);
-	setToolTip(QString::fromStdString(component->show()));
+	setToolTip(QString::fromStdString(component->getName()));
 	// create input output ports
 	GraphicalComponentPort* port;
 	qreal px, py = 0;
@@ -104,9 +104,7 @@ GraphicalModelComponent::GraphicalModelComponent(Plugin* plugin, ModelComponent*
 GraphicalModelComponent::GraphicalModelComponent(const GraphicalModelComponent& orig): GraphicalModelDataDefinition(orig) {
 }
 
-GraphicalModelComponent::~GraphicalModelComponent() {
-	//_component->~ModelComponent();
-}
+GraphicalModelComponent::~GraphicalModelComponent() {}
 
 QRectF GraphicalModelComponent::boundingRect() const {
 	//qreal penWidth = _pen.width();
@@ -286,8 +284,27 @@ ModelComponent* GraphicalModelComponent::getComponent() const {
 	return _component;
 }
 
+QPointF GraphicalModelComponent::getOldPosition() const {
+    return _oldPosition;
+}
+
+
+void GraphicalModelComponent::setOldPosition(QPointF oldPosition) {
+    _oldPosition = oldPosition;
+}
+
+
+QColor GraphicalModelComponent::getColor() const {
+    return _color;
+}
+
+qreal GraphicalModelComponent::getHeight() const {
+    return _height;
+}
+
 bool GraphicalModelComponent::sceneEvent(QEvent *event) {
-	QGraphicsObject::sceneEvent(event); // Unnecessary
+    QGraphicsObject::sceneEvent(event);
+    return true;// Unnecessary
 }
 
 QList<GraphicalComponentPort *> GraphicalModelComponent::getGraphicalOutputPorts() const {
@@ -296,6 +313,19 @@ QList<GraphicalComponentPort *> GraphicalModelComponent::getGraphicalOutputPorts
 
 QList<GraphicalComponentPort *> GraphicalModelComponent::getGraphicalInputPorts() const {
 	return _graphicalInputPorts;
+}
+
+unsigned int GraphicalModelComponent::getOcupiedInputPorts() const {
+    return _ocupiedInputPorts;
+}
+unsigned int GraphicalModelComponent::getOcupiedOutputPorts() const {
+    return _ocupiedOutputPorts;
+}
+void GraphicalModelComponent::setOcupiedInputPorts(unsigned int value) {
+    _ocupiedInputPorts = value;
+}
+void GraphicalModelComponent::setOcupiedOutputPorts(unsigned int value) {
+    _ocupiedOutputPorts = value;
 }
 
 /*

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1081</width>
-    <height>763</height>
+    <height>777</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -150,7 +150,7 @@
                     <rect>
                      <x>0</x>
                      <y>0</y>
-                     <width>680</width>
+                     <width>684</width>
                      <height>70</height>
                     </rect>
                    </property>
@@ -889,7 +889,7 @@
    <property name="minimumSize">
     <size>
      <width>118</width>
-     <height>137</height>
+     <height>138</height>
     </size>
    </property>
    <property name="windowIcon">
@@ -936,7 +936,7 @@ p, li { white-space: pre-wrap; }
 hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Sans Serif'; font-size:8pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Ubuntu'; font-size:8pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'DejaVu LGC Sans';&quot;&gt;Console&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="textInteractionFlags">
@@ -1131,6 +1131,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
    <addaction name="actionSimulationStop"/>
    <addaction name="actionSimulationPause"/>
    <addaction name="actionSimulationResume"/>
+   <addaction name="actionActivateGraphicalSimulation"/>
   </widget>
   <widget class="QToolBar" name="toolBarAbout">
    <property name="windowTitle">
@@ -1262,7 +1263,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <string>Exit Genesys</string>
    </property>
    <property name="shortcut">
-    <string>Ctrl+X</string>
+    <string>Ctrl+Shift+X</string>
    </property>
   </action>
   <action name="actionSimulationStart">
@@ -1431,6 +1432,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    <property name="checkable">
     <bool>true</bool>
    </property>
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/resources/ToolBar/_grade.bmp</normaloff>:/resources/ToolBar/_grade.bmp</iconset>
@@ -1452,6 +1456,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionEditUndo">
+   <property name="checkable">
+    <bool>false</bool>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/icons3/resources/icons/pack3/ico/undo.ico</normaloff>:/icons3/resources/icons/pack3/ico/undo.ico</iconset>
@@ -1462,8 +1472,14 @@ li.checked::marker { content: &quot;\2612&quot;; }
    <property name="shortcut">
     <string>Ctrl+Z</string>
    </property>
+   <property name="visible">
+    <bool>true</bool>
+   </property>
   </action>
   <action name="actionEditRedo">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/icons3/resources/icons/pack3/ico/redo.ico</normaloff>:/icons3/resources/icons/pack3/ico/redo.ico</iconset>
@@ -1500,6 +1516,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionEditCut">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/icons3/resources/icons/pack3/ico/cut.ico</normaloff>:/icons3/resources/icons/pack3/ico/cut.ico</iconset>
@@ -1512,6 +1531,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionEditCopy">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/icons3/resources/icons/pack3/ico/copy.ico</normaloff>:/icons3/resources/icons/pack3/ico/copy.ico</iconset>
@@ -1524,6 +1546,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionEditPaste">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/icons3/resources/icons/pack3/ico/paste.ico</normaloff>:/icons3/resources/icons/pack3/ico/paste.ico</iconset>
@@ -1597,6 +1622,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionDrawLine">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/mxgraph/resources/icons/pack4/iconsMxGraph/hline.png</normaloff>:/mxgraph/resources/icons/pack4/iconsMxGraph/hline.png</iconset>
@@ -1606,6 +1634,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionDrawRectangle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/mxgraph/resources/icons/pack4/iconsMxGraph/rectangle.png</normaloff>:/mxgraph/resources/icons/pack4/iconsMxGraph/rectangle.png</iconset>
@@ -1615,6 +1646,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionDrawEllipse">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/resources/ToolBar/_elipse.bmp</normaloff>:/resources/ToolBar/_elipse.bmp</iconset>
@@ -1681,6 +1715,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionGModelShowConnect">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/mxgraph/resources/icons/pack4/iconsMxGraph/vertical.png</normaloff>:/mxgraph/resources/icons/pack4/iconsMxGraph/vertical.png</iconset>
@@ -1822,6 +1859,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionDrawText">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/icons1/resources/icons/pack1/ico/190.ico</normaloff>:/icons1/resources/icons/pack1/ico/190.ico</iconset>
@@ -1834,6 +1874,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
   </action>
   <action name="actionDrawPoligon">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset resource="GenesysQtGUI_resources.qrc">
      <normaloff>:/resources/ToolBar/_retang.bmp</normaloff>:/resources/ToolBar/_retang.bmp</iconset>
@@ -1987,6 +2030,21 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </property>
    <property name="text">
     <string>Plot</string>
+   </property>
+  </action>
+  <action name="actionActivateGraphicalSimulation">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="GenesysQtGUI_resources.qrc">
+     <normaloff>:/icons3/resources/icons/pack3/ico/eye.ico</normaloff>:/icons3/resources/icons/pack3/ico/eye.ico</iconset>
+   </property>
+   <property name="text">
+    <string>ActivateGraphicalSimulation</string>
+   </property>
+   <property name="toolTip">
+    <string>Activate graphical simulation</string>
    </property>
   </action>
  </widget>

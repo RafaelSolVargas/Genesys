@@ -5,9 +5,10 @@
 #include <QListWidget>
 #include <QTreeWidgetItem>
 #include <QGraphicsItem>
-
+#include <QUndoView>
 
 #include "../../../../kernel/simulator/Simulator.h"
+#include "../../../../kernel/simulator/PropertyGenesys.h"
 #include "../../../../kernel/simulator/TraceManager.h"
 #include "ModelGraphicsScene.h"
 
@@ -24,10 +25,13 @@ class MainWindow : public QMainWindow {
 public:
 	MainWindow(QWidget *parent = nullptr);
 	~MainWindow();
+    ModelGraphicsScene* myScene() const;
 
 public: // to notify changes
 	bool graphicalModelHasChanged() const;
-	void setGraphicalModelHasChanged(bool graphicalModelHasChanged);
+    void setGraphicalModelHasChanged(bool graphicalModelHasChanged);
+    void unselectDrawIcons();
+    bool checkSelectedDrawIcons();
 
 private slots:
     // actions
@@ -41,7 +45,10 @@ private slots:
 	void on_actionEditDelete_triggered();
 	void on_actionEditGroup_triggered();
 	void on_actionEditUngroup_triggered();
+    void on_actionViewGroup_triggered();
+    void on_actionViewUngroup_triggered();
 
+    void on_actionShowGrid_triggered();
 	void on_actionShowRule_triggered();
 	void on_actionShowGuides_triggered();
 	void on_actionViewConfigure_triggered();
@@ -91,7 +98,7 @@ private slots:
 	void on_actionToolsOptimizator_triggered();
 	void on_actionToolsDataAnalyzer_triggered();
 
-	void on_actionSimulatorsPluginManager_triggered();
+	void on_actionSimulatorPluginManager_triggered();
 	void on_actionSimulatorExit_triggered();
 	void on_actionSimulatorPreferences_triggered();
 
@@ -136,6 +143,19 @@ private slots:
 	void on_graphicsView_rubberBandChanged(const QRect &viewportRect, const QPointF &fromScenePoint, const QPointF &toScenePoint);
 	void on_TextCodeEditor_textChanged();
 
+    void on_treeWidgetDataDefnitions_itemDoubleClicked(QTreeWidgetItem *item, int column);
+    void on_treeWidgetDataDefnitions_itemChanged(QTreeWidgetItem *item, int column);
+    void on_actionArranjeLeft_triggered();
+    void on_actionArranjeRight_triggered();
+    void on_actionArranjeTop_triggered();
+    void on_actionArranjeBototm_triggered();
+    void on_actionArranjeCenter_triggered();
+    void on_actionArranjeMiddle_triggered();
+    void on_actionShowSnap_triggered();
+    void on_actionGModelShowConnect_triggered();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private: // VIEW
 
@@ -154,9 +174,12 @@ private: // simulator event handlers
 	void _onProcessEventHandler(SimulationEvent* re);
 	void _onEntityCreateHandler(SimulationEvent* re);
 	void _onEntityRemoveHandler(SimulationEvent* re);
+    void _onMoveEntityEvent(SimulationEvent * re);
 private: // model Graphics View handlers
-	void _onSceneMouseEvent(QGraphicsSceneMouseEvent* mouseEvent);
-	void _onSceneGraphicalModelEvent(GraphicalModelEvent* event);
+    void _onSceneMouseEvent(QGraphicsSceneMouseEvent* mouseEvent);
+    void _onSceneWheelInEvent();
+    void _onSceneWheelOutEvent();
+    void _onSceneGraphicalModelEvent(GraphicalModelEvent* event);
 private: // QGraphicsScene Slots
 	void sceneChanged(const QList<QRectF> &region);
 	void sceneFocusItemChanged(QGraphicsItem *newFocusItem, QGraphicsItem *oldFocusItem, Qt::FocusReason reason);
@@ -167,7 +190,7 @@ private: // Similar to QGraphicsScene Slots
 private: // simulator related
 	void _setOnEventHandlers();
 	void _insertPluginUI(Plugin* plugin);
-	//void _insertFakePlugins();
+	void _insertFakePlugins();
 	bool _setSimulationModelBasedOnText();
 	bool _createModelImage();
 	std::string _adjustDotName(std::string name);
@@ -179,6 +202,7 @@ private: // view
 	void _initModelGraphicsView();
 	void _initUiForNewModel(Model* m);
 	void _actualizeActions();
+    void _actualizeUndo();
 	void _actualizeTabPanes();
 	void _actualizeModelSimLanguage();
 	void _actualizeModelTextHasChanged(bool hasChanged);
@@ -195,16 +219,23 @@ private: // view
 	void _showMessageNotImplemented();
 	void _recursivalyGenerateGraphicalModelFromModel(ModelComponent* component, List<ModelComponent*>* visited, std::map<ModelComponent*,GraphicalModelComponent*>* map, int *x, int *y, int *ymax, int sequenceInline);
 	void _generateGraphicalModelFromModel();
+    void saveItemForCopy(QList<GraphicalModelComponent*> * gmcList, QList<GraphicalConnection*> * connList);
 	//bool _checkStartSimulation();
 private: // graphical model persistence
-	bool _saveGraphicalModel(std::string filename);
+    bool _saveGraphicalModel(QString filename);
+    bool _saveTextModel(QFile *saveFile, QString data);
 	Model* _loadGraphicalModel(std::string filename);
-private: //???
+private:
+	QColor myrgba(uint64_t color); // TODO: Should NOT be here, but in UtilGUI.h, but then it generates multiple definitions error
+	static std::string dotColor(uint64_t color); // TODO: Should NOT be here, but in UtilGUI.h, but then it generates multiple definitions error
+    void _helpCopy();
 private: // interface and model main elements to join
 	Ui::MainWindow *ui;
 	Simulator* simulator;
+	PropertyEditorGenesys* propertyGenesys;
 private: // attributes to be saved and loaded withing the graphical model
 	int _zoomValue; // todo should be set for each open graphical model, such as view rect, etc
+//!@TODO CHeck if used
 private: // misc useful
 	bool _textModelHasChanged = false;
 	bool _graphicalModelHasChanged = false;
@@ -212,8 +243,22 @@ private: // misc useful
 	QString _autoLoadPluginsFilename = "autoloadplugins.txt";
 	QString _modelfilename;
 	std::map<std::string /*category*/,QColor>* _pluginCategoryColor = new std::map<std::string,QColor>();
-	QColor myrgba(uint64_t color); // TODO: Should NOT be here, but in UtilGUI.h, but then it generates multiple definitions error
-	static std::string dotColor(uint64_t color); // TODO: Should NOT be here, but in UtilGUI.h, but then it generates multiple definitions error
+
+
+    bool _cut;
+    QList<GraphicalModelComponent*> * _gmc_copies  = new QList<GraphicalModelComponent*>();
+    QList<GraphicalConnection*> * _ports_copies = new QList<GraphicalConnection*>();
+    QList<QGraphicsItem *>  *_draw_copy = new QList<QGraphicsItem *>();
+    QList<QGraphicsItemGroup *>  *_group_copy = new QList<QGraphicsItemGroup *>();
+
+    struct COPY {
+        GraphicalModelComponent * old;
+        GraphicalModelComponent * copy;
+    };
+
+    bool _firstClickShowConnection = true;
+
+private:
 
 	const struct TABINDEXES_STRUC {
 		const int TabCentralModelIndex = 0;
@@ -236,6 +281,9 @@ private: // misc useful
 		const int TabReportResultIndex = 1;
 		const int TabReportPlotIndex = 2;
 	} CONST;
+
+    QUndoView *undoView = nullptr;
+    bool _graphicalSimulation = false;
 	//CodeEditor* textCodeEdit_Model;
 };
 #endif // MAINWINDOW_H

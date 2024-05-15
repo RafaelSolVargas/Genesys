@@ -17,7 +17,7 @@ GraphicalComponentPort::GraphicalComponentPort(GraphicalModelComponent* componen
 		_height *= 1.15;
 	}
 	//setPos(0,0);
-	setFlags(QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsFocusable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsFocusable);
 	setAcceptHoverEvents(true);
 	setAcceptTouchEvents(true);
 	setActive(true);
@@ -195,7 +195,11 @@ void GraphicalComponentPort::addGraphicalConnection(GraphicalConnection* connect
 }
 
 void GraphicalComponentPort::removeGraphicalConnection(GraphicalConnection* connection) {
-	_connections->removeOne(connection);
+    if (connection && _connections) {
+        if (!_connections->empty()) {
+            _connections->removeOne(connection);
+        }
+    }
 }
 
 

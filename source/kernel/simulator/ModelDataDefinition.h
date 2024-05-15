@@ -24,7 +24,6 @@
 #include "Persistence.h"
 //#include "PropertyGenesys.h"
 #include "SimulationControlAndResponse.h"
-#include "DefineGetterSetter.h"
 #include "TraceManager.h"
 
 //namespace GenesysKernel {

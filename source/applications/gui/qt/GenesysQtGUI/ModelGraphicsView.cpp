@@ -68,9 +68,6 @@ ModelGraphicsScene* ModelGraphicsView::getScene() {
 	return (ModelGraphicsScene*) scene();
 }
 
-void ModelGraphicsView::showGrid() {
-	((ModelGraphicsScene*) scene())->showGrid();
-}
 
 void ModelGraphicsView::clear() {
 	scene()->clear();
@@ -83,9 +80,9 @@ void ModelGraphicsView::beginConnection() {
 void ModelGraphicsView::selectModelComponent(ModelComponent* component) {
 	QList<QGraphicsItem*>* list = ((ModelGraphicsScene*) scene())->getGraphicalModelComponents();
 	for (QGraphicsItem* item : *list) {
-		GraphicalModelComponent* gmc = (GraphicalModelComponent*) item;
+        GraphicalModelComponent* gmc = (GraphicalModelComponent*) item;
 		if (gmc->getComponent() == component) {
-			gmc->setSelected(true);
+            gmc->setSelected(true);
 		} else {
 			gmc->setSelected(false);
 		}
@@ -95,6 +92,11 @@ void ModelGraphicsView::selectModelComponent(ModelComponent* component) {
 void ModelGraphicsView::setSimulator(Simulator* simulator) {
 	_simulator = simulator;
 	((ModelGraphicsScene*) scene())->setSimulator(simulator);
+}
+
+void ModelGraphicsView::setPropertyEditor(PropertyEditorGenesys* propEditor) {
+	_propertyEditor = propEditor;
+	((ModelGraphicsScene*) scene())->setPropertyEditor(propEditor);
 }
 
 QColor ModelGraphicsView::myrgba(uint64_t color) {
@@ -127,6 +129,14 @@ void ModelGraphicsView::setEnabled(bool enabled) {
 
 void ModelGraphicsView::notifySceneMouseEventHandler(QGraphicsSceneMouseEvent* mouseEvent) {
 	this->_sceneMouseEventHandler(mouseEvent);
+}
+
+void ModelGraphicsView::notifySceneWheelInEventHandler() {
+    this->_sceneWheelInEventHandler();
+}
+
+void ModelGraphicsView::notifySceneWheelOutEventHandler() {
+    this->_sceneWheelOutEventHandler();
 }
 
 void ModelGraphicsView::notifySceneGraphicalModelEventHandler(GraphicalModelEvent* modelGraphicsEvent) {
